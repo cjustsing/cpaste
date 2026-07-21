@@ -1,0 +1,73 @@
+<mxfile host="app.diagrams.net" modified="2026-07-09T00:00:00.000Z" agent="Codex" version="24.7.17" type="device">
+  <diagram id="cpaste-interface-guide" name="CPaste Interface Guide">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="820" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="2" value="CPaste 界面图指引" style="text;html=1;strokeColor=none;fillColor=none;fontSize=26;fontStyle=1;fontColor=#111827;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="60" y="30" width="420" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="3" value="菜单栏入口" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#111827;strokeColor=#111827;fontColor=#FFFFFF;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="90" width="250" height="54" as="geometry"/>
+        </mxCell>
+        <mxCell id="4" value="① CPaste 图标&#xa;左键打开历史面板，右键打开菜单" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D1FAE5;strokeColor=#10B981;fontColor=#064E3B;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="340" y="86" width="260" height="62" as="geometry"/>
+        </mxCell>
+        <mxCell id="5" value="" style="shape=mxgraph.basic.arc;html=1;strokeColor=#10B981;strokeWidth=2;fillColor=none;startArrow=none;endArrow=block;endFill=1;" edge="1" parent="1" source="4" target="3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="6" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0F172A;strokeColor=#334155;strokeWidth=2;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="60" y="185" width="1080" height="560" as="geometry"/>
+        </mxCell>
+        <mxCell id="7" value="② 工具栏：搜索、筛选、置顶、清空、关闭" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1E293B;strokeColor=#475569;fontColor=#E5E7EB;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="90" y="210" width="1020" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="8" value="搜索框&#xa;回车粘贴当前选中项" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#064E3B;strokeColor=#10B981;fontColor=#D1FAE5;" vertex="1" parent="1">
+          <mxGeometry x="180" y="224" width="300" height="32" as="geometry"/>
+        </mxCell>
+        <mxCell id="9" value="类型筛选 / 置顶" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#334155;strokeColor=#64748B;fontColor=#E5E7EB;" vertex="1" parent="1">
+          <mxGeometry x="500" y="224" width="210" height="32" as="geometry"/>
+        </mxCell>
+        <mxCell id="10" value="清空 / 关闭" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#334155;strokeColor=#64748B;fontColor=#E5E7EB;" vertex="1" parent="1">
+          <mxGeometry x="860" y="224" width="160" height="32" as="geometry"/>
+        </mxCell>
+        <mxCell id="11" value="③ 历史列表&#xa;单击选中，双击粘贴" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#111827;strokeColor=#475569;fontColor=#E5E7EB;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="90" y="290" width="410" height="370" as="geometry"/>
+        </mxCell>
+        <mxCell id="12" value="选中行" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#34D399;strokeColor=#10B981;fontColor=#052E16;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="115" y="320" width="360" height="58" as="geometry"/>
+        </mxCell>
+        <mxCell id="13" value="普通历史项" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1F2937;strokeColor=#374151;fontColor=#E5E7EB;" vertex="1" parent="1">
+          <mxGeometry x="115" y="390" width="360" height="54" as="geometry"/>
+        </mxCell>
+        <mxCell id="14" value="④ 行内快捷操作&#xa;复制、置顶、删除" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF3C7;strokeColor=#F59E0B;fontColor=#78350F;" vertex="1" parent="1">
+          <mxGeometry x="215" y="462" width="260" height="58" as="geometry"/>
+        </mxCell>
+        <mxCell id="15" value="⑤ 列表底部状态&#xa;可见数 / 总数 / 当前位置" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0E7FF;strokeColor=#6366F1;fontColor=#312E81;" vertex="1" parent="1">
+          <mxGeometry x="115" y="604" width="360" height="38" as="geometry"/>
+        </mxCell>
+        <mxCell id="16" value="⑥ 预览区&#xa;查看完整文本、文件路径或图片" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#111827;strokeColor=#475569;fontColor=#E5E7EB;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="530" y="290" width="580" height="370" as="geometry"/>
+        </mxCell>
+        <mxCell id="17" value="类型 / 置顶标签 / 最近时间" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1E293B;strokeColor=#475569;fontColor=#E5E7EB;" vertex="1" parent="1">
+          <mxGeometry x="560" y="320" width="520" height="44" as="geometry"/>
+        </mxCell>
+        <mxCell id="18" value="正文预览&#xa;文本可选择，文件显示文件名 + 路径，图片等比缩放" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#020617;strokeColor=#334155;fontColor=#E5E7EB;" vertex="1" parent="1">
+          <mxGeometry x="560" y="382" width="520" height="178" as="geometry"/>
+        </mxCell>
+        <mxCell id="19" value="⑦ 操作栏&#xa;复制、粘贴、辅助功能状态" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1E293B;strokeColor=#475569;fontColor=#E5E7EB;" vertex="1" parent="1">
+          <mxGeometry x="560" y="586" width="520" height="46" as="geometry"/>
+        </mxCell>
+        <mxCell id="20" value="⑧ 紧凑布局&#xa;窄屏时筛选折叠菜单，列表和预览上下排列" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FCE7F3;strokeColor=#EC4899;fontColor=#831843;" vertex="1" parent="1">
+          <mxGeometry x="775" y="86" width="330" height="62" as="geometry"/>
+        </mxCell>
+        <mxCell id="21" value="" style="endArrow=block;html=1;rounded=0;strokeColor=#EC4899;strokeWidth=2;dashed=1;" edge="1" parent="1" source="20" target="7">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="22" value="键盘：↑↓ 选择，Enter 粘贴，Delete 删除，Esc 关闭" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCFCE7;strokeColor=#22C55E;fontColor=#14532D;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="90" y="680" width="1020" height="40" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

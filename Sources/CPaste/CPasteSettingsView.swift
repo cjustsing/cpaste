@@ -1,0 +1,471 @@
+import AppKit
+import CPasteCore
+import SwiftUI
+
+struct CPasteSettingsView: View {
+    @ObservedObject var store: ClipboardStore
+    @ObservedObject var appState: AppState
+    let actions: HistoryPanelActions
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var section: SettingsSection = .general
+    @State private var hasAccessibilityPermission = false
+    @State private var isConfirmingClear = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header
+            if !usesLiquidGlassLayout {
+                Divider().overlay(CPasteTheme.separator)
+            }
+
+            Group {
+                switch section {
+                case .general:
+                    generalSettings
+                case .privacy:
+                    privacySettings
+                case .shortcuts:
+                    shortcutSettings
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        }
+        .frame(width: 560, height: usesLiquidGlassLayout ? 420 : 390)
+        .background {
+            if usesLiquidGlassLayout {
+                CPasteLiquidCanvas()
+            } else {
+                ZStack {
+                    VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
+                    CPasteTheme.background.opacity(0.82)
+                }
+                .ignoresSafeArea()
+            }
+        }
+        .onAppear {
+            hasAccessibilityPermission = actions.hasAccessibilityPermission()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            hasAccessibilityPermission = actions.hasAccessibilityPermission()
+        }
+        .confirmationDialog(CPasteL10n.text("清空未收藏的历史记录？", "Clear unpinned history?"), isPresented: $isConfirmingClear) {
+            Button(CPasteL10n.text("清空", "Clear"), role: .destructive) {
+                actions.clearUnpinned()
+            }
+            Button(CPasteL10n.text("取消", "Cancel"), role: .cancel) {}
+        } message: {
+            Text(CPasteL10n.text("已收藏的内容会保留。", "Pinned items will stay in CPaste."))
+        }
+        .environment(\.cpasteThemeStyle, appState.themeStyle)
+    }
+
+    @ViewBuilder
+    private var header: some View {
+        let content = HStack(spacing: 12) {
+            Image(systemName: "gearshape.fill")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(CPasteTheme.accent)
+                .frame(width: 30, height: 30)
+                .cpasteGlass(radius: 7, tint: CPasteTheme.accentSoft, tintOpacity: 0.42, stroke: CPasteTheme.accent.opacity(0.34), shadowOpacity: 0.02)
+
+            Text(CPasteL10n.text("设置", "Settings"))
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(CPasteTheme.textPrimary)
+
+            Spacer()
+
+            Picker("", selection: $section) {
+                Label(CPasteL10n.text("通用", "General"), systemImage: "switch.2")
+                    .tag(SettingsSection.general)
+                Label(CPasteL10n.text("隐私", "Privacy"), systemImage: "hand.raised.fill")
+                    .tag(SettingsSection.privacy)
+                Label(CPasteL10n.text("快捷键", "Shortcuts"), systemImage: "keyboard")
+                    .tag(SettingsSection.shortcuts)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(width: 286)
+
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
+            }
+            .buttonStyle(CPasteIconButtonStyle())
+            .help(CPasteL10n.text("关闭", "Close"))
+            .accessibilityLabel(CPasteL10n.text("关闭设置", "Close settings"))
+        }
+
+        if usesLiquidGlassLayout {
+            CPasteGlassGroup(spacing: 10) {
+                content
+                    .padding(.horizontal, 16)
+                    .frame(height: 58)
+                    .cpasteGlass(radius: 20, shadowOpacity: 0.18)
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 10)
+            .padding(.bottom, 4)
+        } else {
+            content
+                .padding(.horizontal, 16)
+                .frame(height: 58)
+                .background {
+                    CPasteGlassBackground(
+                        radius: 0,
+                        material: .headerView,
+                        tint: CPasteTheme.backgroundLift,
+                        tintOpacity: 0.54,
+                        stroke: Color.clear,
+                        shadowOpacity: 0.06
+                    )
+                }
+        }
+    }
+
+    private var usesLiquidGlassLayout: Bool {
+        if #available(macOS 26.0, *) {
+            return appState.themeStyle == .liquidGlass
+        }
+        return false
+    }
+
+    private var generalSettings: some View {
+        VStack(spacing: 0) {
+            settingsRow(
+                icon: appState.isCapturePaused ? "pause.circle.fill" : "record.circle",
+                title: CPasteL10n.text("剪贴板捕获", "Clipboard Capture"),
+                subtitle: appState.isCapturePaused ? CPasteL10n.text("已暂停", "Paused") : CPasteL10n.text("正在记录", "Recording")
+            ) {
+                Toggle("", isOn: captureBinding)
+                    .toggleStyle(.switch)
+                    .labelsHidden()
+                    .accessibilityLabel(CPasteL10n.text("剪贴板捕获", "Clipboard Capture"))
+            }
+
+            Divider().padding(.leading, 56)
+
+            settingsRow(
+                icon: "clock.arrow.circlepath",
+                title: CPasteL10n.text("历史容量", "History Capacity"),
+                subtitle: CPasteL10n.text("收藏内容不受容量限制", "Pinned items are always preserved")
+            ) {
+                Picker("", selection: historyLimitBinding) {
+                    Text("50").tag(50)
+                    Text("100").tag(100)
+                    Text("500").tag(500)
+                    Text("1000").tag(1_000)
+                }
+                .labelsHidden()
+                .frame(width: 112)
+            }
+
+            Divider().padding(.leading, 56)
+
+            settingsRow(
+                icon: "paintpalette.fill",
+                title: CPasteL10n.text("外观主题", "Appearance Theme"),
+                subtitle: themeSubtitle
+            ) {
+                Picker("", selection: themeStyleBinding) {
+                    ForEach(AppEnvironment.availableThemeStyles, id: \.self) { style in
+                        Text(themeName(style)).tag(style)
+                    }
+                }
+                .labelsHidden()
+                .frame(width: 132)
+                .accessibilityLabel(CPasteL10n.text("外观主题", "Appearance Theme"))
+            }
+
+            Divider().padding(.leading, 56)
+
+            settingsRow(
+                icon: "keyboard",
+                title: CPasteL10n.text("呼出快捷键", "Activation Shortcut"),
+                subtitle: appState.isHotKeyRegistered ? CPasteL10n.text("全局快捷键可用", "Global shortcut is available") : CPasteL10n.text("快捷键已被其他应用占用", "Shortcut is used by another app")
+            ) {
+                Text("⇧⌘V")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(appState.isHotKeyRegistered ? CPasteTheme.textPrimary : CPasteTheme.rose)
+                    .padding(.horizontal, 10)
+                    .frame(height: 28)
+                    .cpasteGlass(radius: 7, material: .menu, tintOpacity: 0.46, shadowOpacity: 0.02)
+            }
+
+            Divider().padding(.leading, 56)
+
+            settingsRow(
+                icon: hasAccessibilityPermission ? "checkmark.shield.fill" : "lock.open.fill",
+                title: CPasteL10n.text("直接粘贴", "Direct Paste"),
+                subtitle: hasAccessibilityPermission ? CPasteL10n.text("辅助功能权限已开启", "Accessibility access is enabled") : CPasteL10n.text("当前会复制到系统剪贴板", "Currently copies back to the clipboard")
+            ) {
+                if hasAccessibilityPermission {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(CPasteTheme.accent)
+                        .font(.system(size: 17))
+                        .accessibilityLabel(CPasteL10n.text("已授权", "Allowed"))
+                } else {
+                    Button(CPasteL10n.text("打开设置", "Open Settings")) {
+                        actions.openAccessibility()
+                    }
+                    .controlSize(.small)
+                }
+            }
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 12)
+    }
+
+    private var privacySettings: some View {
+        VStack(spacing: 0) {
+            settingsRow(
+                icon: "externaldrive.fill.badge.checkmark",
+                title: CPasteL10n.text("仅本地保存", "Stored Locally"),
+                subtitle: CPasteL10n.text("无网络上传；历史文件未加密", "No network upload; history files are not encrypted")
+            ) {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(CPasteTheme.accent)
+                    .font(.system(size: 17))
+                    .accessibilityLabel(CPasteL10n.text("本地保存", "Stored locally"))
+            }
+
+            Divider().padding(.leading, 56)
+
+            settingsRow(
+                icon: "hand.raised.slash.fill",
+                title: CPasteL10n.text("敏感内容保护", "Sensitive Content Protection"),
+                subtitle: CPasteL10n.text("跳过密码管理器标记和临时剪贴板内容", "Ignores password-manager markers and transient content")
+            ) {
+                Image(systemName: "checkmark.shield.fill")
+                    .foregroundStyle(CPasteTheme.accent)
+                    .font(.system(size: 17))
+                    .accessibilityLabel(CPasteL10n.text("已启用敏感内容保护", "Sensitive content protection enabled"))
+            }
+
+            Divider().padding(.leading, 56)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Label(CPasteL10n.text("数据位置", "Data Location"), systemImage: "folder")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(CPasteTheme.textPrimary)
+
+                Text(store.storageDirectory.path)
+                    .font(.system(size: 10.5, design: .monospaced))
+                    .foregroundStyle(CPasteTheme.textSecondary)
+                    .textSelection(.enabled)
+                    .lineLimit(2)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(10)
+                    .background(CPasteTheme.previewSurface.opacity(0.72), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .stroke(CPasteTheme.separator, lineWidth: 1)
+                    )
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 14)
+
+            Divider().padding(.leading, 56)
+
+            settingsRow(
+                icon: "trash",
+                title: CPasteL10n.text("清理历史", "Clear History"),
+                subtitle: CPasteL10n.text("只删除未收藏的内容", "Only unpinned items are removed")
+            ) {
+                Button(CPasteL10n.text("清空", "Clear"), role: .destructive) {
+                    isConfirmingClear = true
+                }
+                .controlSize(.small)
+                .disabled(!store.items.contains(where: { !$0.isPinned }))
+            }
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 12)
+    }
+
+    private var shortcutSettings: some View {
+        HStack(alignment: .top, spacing: 14) {
+            shortcutGroup(
+                title: CPasteL10n.text("浏览", "Navigation"),
+                systemImage: "rectangle.and.hand.point.up.left",
+                shortcuts: navigationShortcuts
+            )
+
+            Divider()
+                .overlay(CPasteTheme.separator)
+                .padding(.vertical, 2)
+
+            shortcutGroup(
+                title: CPasteL10n.text("操作", "Actions"),
+                systemImage: "command",
+                shortcuts: actionShortcuts
+            )
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 10)
+    }
+
+    private func shortcutGroup(
+        title: String,
+        systemImage: String,
+        shortcuts: [SettingsShortcut]
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Label(title, systemImage: systemImage)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(CPasteTheme.textPrimary)
+                .frame(height: 28)
+
+            ForEach(shortcuts) { shortcut in
+                HStack(spacing: 8) {
+                    Text(shortcut.title)
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundStyle(CPasteTheme.textSecondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.82)
+
+                    Spacer(minLength: 4)
+
+                    Text(shortcut.keys)
+                        .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                        .foregroundStyle(CPasteTheme.textPrimary)
+                        .padding(.horizontal, 7)
+                        .frame(minWidth: 34, minHeight: 22)
+                        .background(
+                            CPasteTheme.previewSurface.opacity(0.72),
+                            in: RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                .stroke(CPasteTheme.separator, lineWidth: 1)
+                        )
+                        .fixedSize()
+                }
+                .frame(height: 28)
+                .accessibilityElement(children: .combine)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+
+    private var navigationShortcuts: [SettingsShortcut] {
+        [
+            SettingsShortcut(CPasteL10n.text("显示或隐藏 CPaste", "Show or hide CPaste"), "⇧⌘V"),
+            SettingsShortcut(CPasteL10n.text("切换到历史", "Show history"), "⌥1"),
+            SettingsShortcut(CPasteL10n.text("切换到收藏", "Show pinned"), "⌥2"),
+            SettingsShortcut(CPasteL10n.text("聚焦搜索", "Focus search"), "⌘F"),
+            SettingsShortcut(CPasteL10n.text("切换搜索与时间轴", "Switch search and timeline"), "⇥"),
+            SettingsShortcut(CPasteL10n.text("上一张卡片", "Previous card"), "← / ↑"),
+            SettingsShortcut(CPasteL10n.text("下一张卡片", "Next card"), "→ / ↓"),
+            SettingsShortcut(CPasteL10n.text("第一张卡片", "First card"), "⌘↑"),
+            SettingsShortcut(CPasteL10n.text("最后一张卡片", "Last card"), "⌘↓")
+        ]
+    }
+
+    private var actionShortcuts: [SettingsShortcut] {
+        [
+            SettingsShortcut(CPasteL10n.text("粘贴", "Paste"), "↩"),
+            SettingsShortcut(CPasteL10n.text("纯文本粘贴", "Paste as plain text"), "⇧↩"),
+            SettingsShortcut(CPasteL10n.text("快速粘贴第 1–9 项", "Quick paste items 1–9"), "⌘1…⌘9"),
+            SettingsShortcut(CPasteL10n.text("复制", "Copy"), "⌘C"),
+            SettingsShortcut(CPasteL10n.text("收藏或取消收藏", "Pin or unpin"), "P"),
+            SettingsShortcut(CPasteL10n.text("展开或收起详情", "Show or hide details"), "Space"),
+            SettingsShortcut(CPasteL10n.text("删除", "Delete"), "⌫"),
+            SettingsShortcut(CPasteL10n.text("暂停或继续捕获", "Pause or resume capture"), "⌘T"),
+            SettingsShortcut(CPasteL10n.text("打开设置", "Open settings"), "⌘,"),
+            SettingsShortcut(CPasteL10n.text("清空搜索或关闭", "Clear search or close"), "Esc")
+        ]
+    }
+
+    private func settingsRow<Accessory: View>(
+        icon: String,
+        title: String,
+        subtitle: String,
+        @ViewBuilder accessory: () -> Accessory
+    ) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(CPasteTheme.accent)
+                .frame(width: 26, height: 26)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(CPasteTheme.textPrimary)
+                Text(subtitle)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(CPasteTheme.textMuted)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 12)
+            accessory()
+        }
+        .frame(minHeight: 62)
+        .padding(.horizontal, 14)
+    }
+
+    private var captureBinding: Binding<Bool> {
+        Binding(
+            get: { !appState.isCapturePaused },
+            set: { enabled in
+                if enabled == appState.isCapturePaused {
+                    actions.toggleCapture()
+                }
+            }
+        )
+    }
+
+    private var historyLimitBinding: Binding<Int> {
+        Binding(
+            get: { store.maxItems },
+            set: actions.setHistoryLimit
+        )
+    }
+
+    private var themeStyleBinding: Binding<AppThemeStyle> {
+        Binding(
+            get: { appState.themeStyle },
+            set: appState.setThemeStyle
+        )
+    }
+
+    private var themeSubtitle: String {
+        if AppEnvironment.availableThemeStyles.contains(.liquidGlass) {
+            return CPasteL10n.text("切换界面材质风格", "Choose the interface material")
+        }
+        return CPasteL10n.text("当前系统仅支持标准主题", "Only the standard theme is available")
+    }
+
+    private func themeName(_ style: AppThemeStyle) -> String {
+        switch style {
+        case .standard:
+            return CPasteL10n.text("标准", "Standard")
+        case .liquidGlass:
+            return CPasteL10n.text("液态玻璃", "Liquid Glass")
+        }
+    }
+}
+
+private enum SettingsSection: String, CaseIterable, Identifiable {
+    case general
+    case privacy
+    case shortcuts
+
+    var id: String { rawValue }
+}
+
+private struct SettingsShortcut: Identifiable {
+    let title: String
+    let keys: String
+
+    var id: String { title }
+
+    init(_ title: String, _ keys: String) {
+        self.title = title
+        self.keys = keys
+    }
+}
