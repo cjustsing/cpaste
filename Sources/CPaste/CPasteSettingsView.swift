@@ -11,6 +11,7 @@ struct CPasteSettingsView: View {
     @State private var section: SettingsSection = .general
     @State private var hasAccessibilityPermission = false
     @State private var isConfirmingClear = false
+    @State private var isSupportPresented = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -27,6 +28,8 @@ struct CPasteSettingsView: View {
                     privacySettings
                 case .shortcuts:
                     shortcutSettings
+                case .about:
+                    aboutSettings
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -41,6 +44,24 @@ struct CPasteSettingsView: View {
                     CPasteTheme.background.opacity(0.82)
                 }
                 .ignoresSafeArea()
+            }
+        }
+        .allowsHitTesting(!isSupportPresented)
+        .accessibilityHidden(isSupportPresented)
+        .overlay {
+            if isSupportPresented {
+                CPasteSupportView {
+                    isSupportPresented = false
+                }
+                .transition(.opacity)
+            }
+        }
+        .animation(.easeOut(duration: 0.14), value: isSupportPresented)
+        .onExitCommand {
+            if isSupportPresented {
+                isSupportPresented = false
+            } else {
+                dismiss()
             }
         }
         .onAppear {
@@ -82,10 +103,12 @@ struct CPasteSettingsView: View {
                     .tag(SettingsSection.privacy)
                 Label(CPasteL10n.text("快捷键", "Shortcuts"), systemImage: "keyboard")
                     .tag(SettingsSection.shortcuts)
+                Label(CPasteL10n.text("关于", "About"), systemImage: "info.circle.fill")
+                    .tag(SettingsSection.about)
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .frame(width: 286)
+            .frame(width: 350)
 
             Button {
                 dismiss()
@@ -307,6 +330,81 @@ struct CPasteSettingsView: View {
         .padding(.vertical, 10)
     }
 
+    private var aboutSettings: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 14) {
+                if let icon = NSApplication.shared.applicationIconImage {
+                    Image(nsImage: icon)
+                        .resizable()
+                        .interpolation(.high)
+                        .frame(width: 58, height: 58)
+                        .accessibilityHidden(true)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("CPaste")
+                        .font(.system(size: 19, weight: .bold, design: .rounded))
+                        .foregroundStyle(CPasteTheme.textPrimary)
+                    Text(versionSummary)
+                        .font(.system(size: 11.5, weight: .medium, design: .rounded))
+                        .foregroundStyle(CPasteTheme.textSecondary)
+                    Text(CPasteL10n.text(
+                        "本地优先的 macOS 剪贴板历史工具",
+                        "A local-first clipboard history app for macOS"
+                    ))
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(CPasteTheme.textMuted)
+                }
+
+                Spacer()
+            }
+            .padding(.horizontal, 14)
+            .frame(height: 98)
+
+            Divider().padding(.leading, 56)
+
+            settingsRow(
+                icon: "heart.fill",
+                title: CPasteL10n.text("支持 CPaste", "Support CPaste"),
+                subtitle: CPasteL10n.text("完全自愿，不影响任何功能", "Entirely optional; no features are affected")
+            ) {
+                Button(CPasteL10n.text("查看收款码", "View Codes")) {
+                    isSupportPresented = true
+                }
+                .controlSize(.small)
+            }
+
+            Divider().padding(.leading, 56)
+
+            settingsRow(
+                icon: "chevron.left.forwardslash.chevron.right",
+                title: CPasteL10n.text("GitHub 项目", "GitHub Project"),
+                subtitle: "github.com/cjustsing/cpaste"
+            ) {
+                Button(CPasteL10n.text("打开", "Open")) {
+                    guard let url = URL(string: "https://github.com/cjustsing/cpaste") else { return }
+                    NSWorkspace.shared.open(url)
+                }
+                .controlSize(.small)
+                .accessibilityLabel(CPasteL10n.text("打开 CPaste GitHub 项目", "Open the CPaste GitHub project"))
+            }
+
+            Divider().padding(.leading, 56)
+
+            settingsRow(
+                icon: "doc.text.fill",
+                title: CPasteL10n.text("开源许可", "Open Source License"),
+                subtitle: CPasteL10n.text("独立开发的个人项目", "An independently developed personal project")
+            ) {
+                Text("Apache-2.0")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(CPasteTheme.textSecondary)
+            }
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 12)
+    }
+
     private func shortcutGroup(
         title: String,
         systemImage: String,
@@ -448,12 +546,24 @@ struct CPasteSettingsView: View {
             return CPasteL10n.text("液态玻璃", "Liquid Glass")
         }
     }
+
+    private var versionSummary: String {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String
+        let build = info?["CFBundleVersion"] as? String
+
+        if let version, let build {
+            return CPasteL10n.text("版本 \(version)（\(build)）", "Version \(version) (\(build))")
+        }
+        return CPasteL10n.text("开发版本", "Development build")
+    }
 }
 
 private enum SettingsSection: String, CaseIterable, Identifiable {
     case general
     case privacy
     case shortcuts
+    case about
 
     var id: String { rawValue }
 }

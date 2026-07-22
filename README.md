@@ -88,6 +88,23 @@ Clipboard entries marked as concealed, transient, auto-generated, or as coming f
 
 No network sync or upload is implemented.
 
+## Support CPaste
+
+If CPaste is useful to you, you can voluntarily support its independent development. Support is entirely optional and does not unlock features or affect app usage or future updates.
+
+如果 CPaste 帮到了你，可以自愿支持这个独立开发的个人项目。赞赏不会解锁任何功能，也不会影响软件使用或后续更新。
+
+<details>
+<summary>View Alipay and WeChat Pay codes / 查看支付宝与微信收款码</summary>
+
+Only the QR modules are published; personal avatars and display names are intentionally omitted. / 仓库仅展示二维码图形，个人头像与昵称已移除。
+
+| Alipay / 支付宝 | WeChat Pay / 微信支付 |
+| --- | --- |
+| <img src="Resources/Support/alipay-support-qr.png" alt="Privacy-safe Alipay support QR code" width="220"> | <img src="Resources/Support/wechat-support-qr.png" alt="Privacy-safe WeChat Pay support QR code" width="220"> |
+
+</details>
+
 ## License
 
 CPaste is an independently developed personal project owned by `cjustsing`.

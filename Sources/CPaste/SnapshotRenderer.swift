@@ -61,6 +61,12 @@ enum SnapshotRenderer {
             appState: makeReadyState(),
             to: directory
         )
+
+        try renderSupport(
+            name: "06-support.png",
+            appState: makeReadyState(),
+            to: directory
+        )
     }
 
     private static func renderPanel(
@@ -97,6 +103,20 @@ enum SnapshotRenderer {
             actions: makeActions(store: store, appState: appState)
         )
         .preferredColorScheme(.dark)
+
+        try render(view, size: size, to: directory.appendingPathComponent(name, isDirectory: false))
+    }
+
+    private static func renderSupport(
+        name: String,
+        appState: AppState,
+        to directory: URL
+    ) throws {
+        let size = NSSize(width: 560, height: 420)
+        let view = CPasteSupportView()
+            .frame(width: size.width, height: size.height)
+            .environment(\.cpasteThemeStyle, appState.themeStyle)
+            .preferredColorScheme(.dark)
 
         try render(view, size: size, to: directory.appendingPathComponent(name, isDirectory: false))
     }

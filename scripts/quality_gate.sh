@@ -18,6 +18,17 @@ if [[ ! -s "build/CPaste.app/Contents/Resources/$ICON_FILE" ]]; then
   echo "Missing packaged app icon: $ICON_FILE" >&2
   exit 1
 fi
+for support_asset in alipay-support-qr.png wechat-support-qr.png; do
+  packaged_asset="build/CPaste.app/Contents/Resources/Support/$support_asset"
+  if [[ ! -s "$packaged_asset" ]]; then
+    echo "Missing packaged support asset: $support_asset" >&2
+    exit 1
+  fi
+  if ! cmp -s "Resources/Support/$support_asset" "$packaged_asset"; then
+    echo "Packaged support asset differs from source: $support_asset" >&2
+    exit 1
+  fi
+done
 file "build/CPaste.app/Contents/Resources/$ICON_FILE" | rg "Mac OS X icon"
 file build/CPaste.app/Contents/MacOS/CPaste
 lipo -archs build/CPaste.app/Contents/MacOS/CPaste
