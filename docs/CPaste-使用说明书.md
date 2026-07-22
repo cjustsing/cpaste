@@ -1,12 +1,16 @@
 # CPaste 使用说明书
 
-适用版本：CPaste `0.3.3 (6)`
-适用系统：macOS 13 及以上  
+[English User Guide](CPaste-User-Guide.md)
+
+适用版本：CPaste `0.4.0 (7)`
+适用系统：macOS 13 及以上；Liquid Glass 主题需要 macOS 26 及以上
 处理器：Apple Silicon，当前交付包为原生 `arm64`
 
 ## 1. 产品简介
 
 CPaste 是一个本地剪贴板历史应用。它常驻 macOS 菜单栏，自动记录文本、链接、文件和图片，并通过横向视觉时间轴帮助你搜索、预览、收藏和重新粘贴历史内容。
+
+macOS 26 及以上默认使用系统 Liquid Glass 主题，也可在设置中切换为标准主题；较早系统仅提供标准主题。
 
 ![CPaste 应用图标](../Resources/AppIcon/AppIcon-1024.png)
 
@@ -78,6 +82,8 @@ arm64
 
 ![CPaste 横向时间轴总览](screenshots/timeline-refactor/01-timeline-overview.png)
 
+本说明书中的界面截图来自 macOS 26 上的 Liquid Glass 主题，使用隔离演示数据，不包含真实剪贴板历史。
+
 主窗口从上到下分为三层：
 
 | 区域 | 组成 | 用途 |
@@ -112,7 +118,7 @@ arm64
 
 ## 5. 实际效果图
 
-以下图片由 `0.3.3` release 二进制直接渲染，使用与正式应用相同的 SwiftUI/AppKit 视图和数据流。
+以下图片由 `0.4.0` release 二进制通过真实上屏窗口生成，使用与正式应用相同的 SwiftUI/AppKit 视图、数据流和系统 Liquid Glass 合成器。
 
 ### 5.1 时间轴总览
 
@@ -154,13 +160,26 @@ arm64
 
 ![CPaste 赞赏页](screenshots/timeline-refactor/06-support.png)
 
-### 5.6 重新生成截图
+隐私页展示本地保存、安全过滤、数据目录和历史清理入口。
+
+![CPaste 隐私页](screenshots/timeline-refactor/08-settings-privacy.png)
+
+### 5.6 主题与材质
+
+- macOS 26 及以上默认使用 Liquid Glass，可在“设置 -> 通用 -> 外观主题”切换为标准主题。
+- macOS 26 以下仅显示标准主题，功能和可读性保持完整。
+- 开启系统“减少透明度”时，CPaste 会提高实色背景占比并移除环境光晕。
+- 开启系统“减少动态效果”时，CPaste 会减少非必要的滚动和抬升动画。
+
+### 5.7 重新生成截图
 
 ```sh
 swift build -c release --arch arm64
 mkdir -p docs/screenshots/timeline-refactor
 .build/arm64-apple-macosx/release/CPaste --snapshot-dir docs/screenshots/timeline-refactor
 ```
+
+原生 Liquid Glass 截图需要 macOS 26 及以上，并要求运行截图命令的进程具备“屏幕与系统录音”中的屏幕录制权限。截图器会依次显示固定尺寸的隔离演示窗口，再从 WindowServer 合成结果生成 PNG。
 
 ## 6. 打开与关闭 CPaste
 
@@ -309,6 +328,8 @@ CPaste 可完整使用键盘操作：
 | --- | --- |
 | 剪贴板捕获 | 暂停时不保存新复制内容 |
 | 历史容量 | 50、100、500 或 1000 条；收藏不受清理影响 |
+| 外观主题 | macOS 26 及以上可切换 Liquid Glass / 标准；较早系统仅支持标准 |
+| 界面语言 | 跟随系统、简体中文或 English；切换后立即生效 |
 | 呼出快捷键 | 显示 `Shift-Command-V` 是否注册成功 |
 | 直接粘贴 | 显示辅助功能权限状态并可打开系统设置 |
 
@@ -418,6 +439,10 @@ Demo 会生成文本、链接、文件和图片，并附带 Xcode、Safari、Fin
 
 先退出 CPaste，再删除 `~/Library/Application Support/CPaste`。此操作不可撤销，收藏内容也会一起删除。
 
+### 17.6 为什么没有 Liquid Glass 选项
+
+Liquid Glass 使用 macOS 26 的系统 API。macOS 25 及以下会隐藏该选项并使用标准主题，这是正常的平台兼容行为。
+
 ## 18. 维护与验证
 
 运行完整质量门禁：
@@ -428,7 +453,7 @@ Demo 会生成文本、链接、文件和图片，并附带 Xcode、Safari、Fin
 
 门禁覆盖：
 
-- 14 组核心行为检查。
+- 核心行为检查。
 - release arm64 构建。
 - `.app` 打包与 `Info.plist`。
 - Mach-O 架构与 codesign。
@@ -439,3 +464,4 @@ Demo 会生成文本、链接、文件和图片，并附带 Xcode、Safari、Fin
 - 自动粘贴需要用户手动授予辅助功能权限。
 - 当前只保存纯字符串、URL、文件 URL 和 PNG 图片，不保存富文本/HTML 的全部原始格式。
 - 当前没有 OCR、iCloud、多 Pinboard、团队共享或同步功能。
+- Liquid Glass 只在 macOS 26 及以上可用；旧系统使用标准主题。

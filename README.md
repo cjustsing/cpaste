@@ -4,6 +4,8 @@ CPaste is a local, Apple Silicon native clipboard history app for macOS. It uses
 
 ![CPaste app icon](Resources/AppIcon/AppIcon-1024.png)
 
+![CPaste Liquid Glass timeline](docs/screenshots/timeline-refactor/01-timeline-overview.png)
+
 ## Build
 
 ```sh
@@ -52,11 +54,10 @@ The app lives in the menu bar. Press `Command+Shift+V` to open the history panel
 
 CPaste follows the macOS language by default. You can also choose `System`, `简体中文`, or `English` in Settings > General > Interface Language; the change takes effect immediately.
 
-Full user manual:
+User manuals:
 
-```text
-docs/CPaste-使用说明书.md
-```
+- [简体中文使用说明书](docs/CPaste-使用说明书.md)
+- [English User Guide](docs/CPaste-User-Guide.md)
 
 Generate current UI screenshots:
 
@@ -65,6 +66,8 @@ swift build -c release --arch arm64
 mkdir -p docs/screenshots/timeline-refactor
 .build/arm64-apple-macosx/release/CPaste --snapshot-dir docs/screenshots/timeline-refactor
 ```
+
+Liquid Glass screenshots require macOS 26 or later. Screen Recording permission must be available to the process that runs the snapshot command because native glass is captured from an onscreen WindowServer composition.
 
 For local UI smoke checks without touching your real history:
 

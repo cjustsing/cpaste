@@ -1,9 +1,13 @@
 import AppKit
 import CPasteCore
+import ScreenCaptureKit
 import SwiftUI
 
+@MainActor
 enum SnapshotRenderer {
-    static func snapshotDirectoryArgument() -> URL? {
+    private static var previewWindow: NSWindow?
+
+    nonisolated static func snapshotDirectoryArgument() -> URL? {
         let arguments = ProcessInfo.processInfo.arguments
         guard let index = arguments.firstIndex(of: "--snapshot-dir"),
               arguments.indices.contains(index + 1)
@@ -14,10 +18,75 @@ enum SnapshotRenderer {
         return URL(fileURLWithPath: arguments[index + 1], isDirectory: true)
     }
 
-    static func renderAll(to directory: URL) throws {
+    nonisolated static func snapshotPreviewArgument() -> String? {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let index = arguments.firstIndex(of: "--snapshot-preview"),
+              arguments.indices.contains(index + 1)
+        else {
+            return nil
+        }
+
+        return arguments[index + 1]
+    }
+
+    static func showPreview(named rawName: String) throws {
+        guard #available(macOS 26.0, *) else {
+            throw SnapshotError.liquidGlassUnavailable
+        }
+
+        let name = (rawName as NSString).deletingPathExtension
+        switch name {
+        case "01-timeline-overview":
+            showPanelPreview(
+                size: NSSize(width: 1_180, height: 440),
+                store: makeDemoStore(name: "preview-full"),
+                appState: makeReadyState(),
+                inspectorPresented: false
+            )
+        case "02-timeline-inspector":
+            showPanelPreview(
+                size: NSSize(width: 1_180, height: 583),
+                store: makeDemoStore(name: "preview-inspector"),
+                appState: makeReadyState(),
+                inspectorPresented: true
+            )
+        case "03-compact-timeline":
+            showPanelPreview(
+                size: NSSize(width: 680, height: 440),
+                store: makeDemoStore(name: "preview-compact"),
+                appState: makeReadyState(),
+                inspectorPresented: false
+            )
+        case "04-empty-timeline":
+            let state = AppState(themeStyle: .liquidGlass)
+            state.statusMessage = CPasteL10n.text("就绪", "Ready")
+            showPanelPreview(
+                size: NSSize(width: 680, height: 420),
+                store: ClipboardStore(storageDirectory: temporaryStoreDirectory(name: "preview-empty")),
+                appState: state,
+                inspectorPresented: false
+            )
+        case "05-settings":
+            showSettingsPreview(initialSection: .general)
+        case "06-support":
+            showSettingsPreview(initialSection: .about, supportPresented: true)
+        case "07-settings-about":
+            showSettingsPreview(initialSection: .about)
+        case "08-settings-privacy":
+            showSettingsPreview(initialSection: .privacy)
+        default:
+            throw SnapshotError.unknownScene(rawName)
+        }
+    }
+
+    static func renderAll(to directory: URL) async throws {
+        guard #available(macOS 26.0, *) else {
+            throw SnapshotError.liquidGlassUnavailable
+        }
+
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 
-        try renderPanel(
+        try await renderPanel(
             name: "01-timeline-overview.png",
             size: NSSize(width: 1_180, height: 440),
             store: makeDemoStore(name: "full"),
@@ -26,7 +95,7 @@ enum SnapshotRenderer {
             to: directory
         )
 
-        try renderPanel(
+        try await renderPanel(
             name: "02-timeline-inspector.png",
             size: NSSize(width: 1_180, height: 583),
             store: makeDemoStore(name: "inspector"),
@@ -35,7 +104,7 @@ enum SnapshotRenderer {
             to: directory
         )
 
-        try renderPanel(
+        try await renderPanel(
             name: "03-compact-timeline.png",
             size: NSSize(width: 680, height: 440),
             store: makeDemoStore(name: "compact"),
@@ -44,9 +113,9 @@ enum SnapshotRenderer {
             to: directory
         )
 
-        let emptyState = AppState(themeStyle: .standard)
+        let emptyState = AppState(themeStyle: .liquidGlass)
         emptyState.statusMessage = CPasteL10n.text("就绪", "Ready")
-        try renderPanel(
+        try await renderPanel(
             name: "04-empty-timeline.png",
             size: NSSize(width: 680, height: 420),
             store: ClipboardStore(storageDirectory: temporaryStoreDirectory(name: "empty")),
@@ -55,14 +124,14 @@ enum SnapshotRenderer {
             to: directory
         )
 
-        try renderSettings(
+        try await renderSettings(
             name: "05-settings.png",
             store: makeDemoStore(name: "settings"),
             appState: makeReadyState(),
             to: directory
         )
 
-        try renderSettings(
+        try await renderSettings(
             name: "07-settings-about.png",
             store: makeDemoStore(name: "settings-about"),
             appState: makeReadyState(),
@@ -70,7 +139,7 @@ enum SnapshotRenderer {
             to: directory
         )
 
-        try renderSettings(
+        try await renderSettings(
             name: "08-settings-privacy.png",
             store: makeDemoStore(name: "settings-privacy"),
             appState: makeReadyState(),
@@ -78,13 +147,14 @@ enum SnapshotRenderer {
             to: directory
         )
 
-        try renderSupport(
+        try await renderSupport(
             name: "06-support.png",
             appState: makeReadyState(),
             to: directory
         )
     }
 
+    @available(macOS 26.0, *)
     private static func renderPanel(
         name: String,
         size: NSSize,
@@ -92,7 +162,7 @@ enum SnapshotRenderer {
         appState: AppState,
         inspectorPresented: Bool,
         to directory: URL
-    ) throws {
+    ) async throws {
         let actions = makeActions(store: store, appState: appState)
         let view = HistoryPanelView(
             store: store,
@@ -103,16 +173,17 @@ enum SnapshotRenderer {
         .frame(width: size.width, height: size.height)
         .preferredColorScheme(.dark)
 
-        try render(view, size: size, to: directory.appendingPathComponent(name, isDirectory: false))
+        try await render(view, size: size, to: directory.appendingPathComponent(name, isDirectory: false))
     }
 
+    @available(macOS 26.0, *)
     private static func renderSettings(
         name: String,
         store: ClipboardStore,
         appState: AppState,
         initialSection: SettingsSection = .general,
         to directory: URL
-    ) throws {
+    ) async throws {
         let size = NSSize(width: 560, height: 390)
         let view = CPasteSettingsView(
             store: store,
@@ -122,14 +193,15 @@ enum SnapshotRenderer {
         )
         .preferredColorScheme(.dark)
 
-        try render(view, size: size, to: directory.appendingPathComponent(name, isDirectory: false))
+        try await render(view, size: size, to: directory.appendingPathComponent(name, isDirectory: false))
     }
 
+    @available(macOS 26.0, *)
     private static func renderSupport(
         name: String,
         appState: AppState,
         to directory: URL
-    ) throws {
+    ) async throws {
         let size = NSSize(width: 560, height: 390)
         let store = makeDemoStore(name: "support")
         let view = CPasteSettingsView(
@@ -141,7 +213,7 @@ enum SnapshotRenderer {
         )
             .preferredColorScheme(.dark)
 
-        try render(view, size: size, to: directory.appendingPathComponent(name, isDirectory: false))
+        try await render(view, size: size, to: directory.appendingPathComponent(name, isDirectory: false))
     }
 
     private static func makeActions(store: ClipboardStore, appState: AppState) -> HistoryPanelActions {
@@ -164,7 +236,99 @@ enum SnapshotRenderer {
         )
     }
 
-    private static func render<V: View>(_ view: V, size: NSSize, to url: URL) throws {
+    @available(macOS 26.0, *)
+    private static func showPanelPreview(
+        size: NSSize,
+        store: ClipboardStore,
+        appState: AppState,
+        inspectorPresented: Bool
+    ) {
+        let view = HistoryPanelView(
+            store: store,
+            appState: appState,
+            actions: makeActions(store: store, appState: appState),
+            initialInspectorPresented: inspectorPresented
+        )
+        .frame(width: size.width, height: size.height)
+        .preferredColorScheme(.dark)
+
+        showPreview(view, size: size)
+    }
+
+    @available(macOS 26.0, *)
+    private static func showSettingsPreview(
+        initialSection: SettingsSection,
+        supportPresented: Bool = false
+    ) {
+        let size = NSSize(width: 560, height: 390)
+        let store = makeDemoStore(name: supportPresented ? "preview-support" : "preview-settings")
+        let appState = makeReadyState()
+        let view = CPasteSettingsView(
+            store: store,
+            appState: appState,
+            actions: makeActions(store: store, appState: appState),
+            initialSection: initialSection,
+            initialSupportPresented: supportPresented
+        )
+        .preferredColorScheme(.dark)
+
+        showPreview(view, size: size)
+    }
+
+    @available(macOS 26.0, *)
+    private static func showPreview<V: View>(_ view: V, size: NSSize) {
+        let (window, hostingView) = makeWindow(for: view, size: size)
+        previewWindow = window
+        window.orderFrontRegardless()
+        NSApplication.shared.activate(ignoringOtherApps: true)
+        hostingView.layoutSubtreeIfNeeded()
+    }
+
+    @available(macOS 26.0, *)
+    private static func render<V: View>(_ view: V, size: NSSize, to url: URL) async throws {
+        let (window, hostingView) = makeWindow(for: view, size: size)
+        defer { window.close() }
+        window.orderFrontRegardless()
+        NSApplication.shared.activate(ignoringOtherApps: true)
+        hostingView.layoutSubtreeIfNeeded()
+
+        // Native Liquid Glass is produced by WindowServer. Give the onscreen
+        // compositor and asynchronous thumbnails time to publish before capture.
+        try await Task.sleep(nanoseconds: 500_000_000)
+        hostingView.layoutSubtreeIfNeeded()
+        hostingView.displayIfNeeded()
+
+        let content = try await SCShareableContent.currentProcess
+        guard let shareableWindow = content.windows.first(where: {
+            $0.windowID == CGWindowID(window.windowNumber)
+        }) else {
+            throw SnapshotError.windowNotFound
+        }
+
+        let scale = window.backingScaleFactor
+        let configuration = SCScreenshotConfiguration()
+        configuration.width = Int(size.width * scale)
+        configuration.height = Int(size.height * scale)
+        configuration.showsCursor = false
+        configuration.ignoreShadows = true
+        configuration.displayIntent = .local
+        configuration.dynamicRange = .sdr
+
+        let filter = SCContentFilter(desktopIndependentWindow: shareableWindow)
+        let output = try await SCScreenshotManager.captureScreenshot(
+            contentFilter: filter,
+            configuration: configuration
+        )
+        guard let image = output.sdrImage,
+              let data = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:])
+        else {
+            throw SnapshotError.pngEncodingFailed
+        }
+
+        try data.write(to: url, options: .atomic)
+    }
+
+    private static func makeWindow<V: View>(for view: V, size: NSSize) -> (NSWindow, NSHostingView<V>) {
         let hostingView = NSHostingView(rootView: view)
         hostingView.frame = NSRect(origin: .zero, size: size)
 
@@ -176,33 +340,18 @@ enum SnapshotRenderer {
         )
         window.isOpaque = false
         window.backgroundColor = .clear
+        window.hasShadow = true
+        window.level = .floating
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        window.sharingType = .readOnly
         window.contentView = hostingView
         window.setFrame(NSRect(origin: .zero, size: size), display: true)
-        hostingView.layoutSubtreeIfNeeded()
-
-        // Let asynchronous thumbnail decoding publish before capturing the view.
-        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
-        hostingView.layoutSubtreeIfNeeded()
-        hostingView.displayIfNeeded()
-
-        guard let bitmap = hostingView.bitmapImageRepForCachingDisplay(in: hostingView.bounds) else {
-            throw SnapshotError.bitmapCreationFailed
-        }
-
-        hostingView.cacheDisplay(in: hostingView.bounds, to: bitmap)
-
-        guard let data = bitmap.representation(using: .png, properties: [:]) else {
-            throw SnapshotError.pngEncodingFailed
-        }
-
-        try data.write(to: url, options: .atomic)
-        window.close()
+        window.center()
+        return (window, hostingView)
     }
 
     private static func makeReadyState() -> AppState {
-        // Native Liquid Glass relies on an onscreen compositor and renders as an
-        // opaque layer in NSView.cacheDisplay. Keep documentation snapshots stable.
-        let state = AppState(themeStyle: .standard)
+        let state = AppState(themeStyle: .liquidGlass)
         state.statusMessage = CPasteL10n.text("已复制", "Copied")
         return state
     }
@@ -319,6 +468,8 @@ enum SnapshotRenderer {
 }
 
 private enum SnapshotError: Error {
-    case bitmapCreationFailed
+    case liquidGlassUnavailable
+    case unknownScene(String)
+    case windowNotFound
     case pngEncodingFailed
 }
