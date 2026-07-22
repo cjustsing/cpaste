@@ -304,27 +304,15 @@ struct CPasteSettingsView: View {
 
             Divider().padding(.leading, 56)
 
-            VStack(alignment: .leading, spacing: 8) {
-                Label(CPasteL10n.text("数据位置", "Data Location"), systemImage: "folder")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(CPasteTheme.textPrimary)
-
-                Text(store.storageDirectory.path)
-                    .font(.system(size: 10.5, design: .monospaced))
-                    .foregroundStyle(CPasteTheme.textSecondary)
-                    .textSelection(.enabled)
-                    .lineLimit(2)
-                    .truncationMode(.middle)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(10)
-                    .background(CPasteTheme.previewSurface.opacity(0.72), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .stroke(CPasteTheme.separator, lineWidth: 1)
-                    )
+            settingsRow(
+                icon: "folder",
+                title: CPasteL10n.text("数据位置", "Data Location"),
+                subtitle: store.storageDirectory.path,
+                subtitleTruncationMode: .middle,
+                isSubtitleSelectable: true
+            ) {
+                EmptyView()
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 14)
 
             Divider().padding(.leading, 56)
 
@@ -524,12 +512,16 @@ struct CPasteSettingsView: View {
         title: String,
         subtitle: String,
         minHeight: CGFloat = 62,
+        subtitleTruncationMode: Text.TruncationMode = .tail,
+        isSubtitleSelectable: Bool = false,
         @ViewBuilder accessory: () -> Accessory
     ) -> some View {
         settingsRowContent(
             title: title,
             subtitle: subtitle,
             minHeight: minHeight,
+            subtitleTruncationMode: subtitleTruncationMode,
+            isSubtitleSelectable: isSubtitleSelectable,
             icon: {
                 Image(systemName: icon)
                     .font(.system(size: 15, weight: .semibold))
@@ -544,6 +536,8 @@ struct CPasteSettingsView: View {
         title: String,
         subtitle: String,
         minHeight: CGFloat = 62,
+        subtitleTruncationMode: Text.TruncationMode = .tail,
+        isSubtitleSelectable: Bool = false,
         @ViewBuilder icon: () -> Icon,
         @ViewBuilder accessory: () -> Accessory
     ) -> some View {
@@ -554,10 +548,11 @@ struct CPasteSettingsView: View {
                 Text(title)
                     .font(.system(size: 12.5, weight: .semibold))
                     .foregroundStyle(CPasteTheme.textPrimary)
-                Text(subtitle)
-                    .font(.system(size: 10.5))
-                    .foregroundStyle(CPasteTheme.textMuted)
-                    .lineLimit(1)
+                settingsSubtitle(
+                    subtitle,
+                    truncationMode: subtitleTruncationMode,
+                    isSelectable: isSubtitleSelectable
+                )
             }
 
             Spacer(minLength: 12)
@@ -565,6 +560,25 @@ struct CPasteSettingsView: View {
         }
         .frame(minHeight: minHeight)
         .padding(.horizontal, 14)
+    }
+
+    @ViewBuilder
+    private func settingsSubtitle(
+        _ subtitle: String,
+        truncationMode: Text.TruncationMode,
+        isSelectable: Bool
+    ) -> some View {
+        let text = Text(subtitle)
+            .font(.system(size: 10.5))
+            .foregroundStyle(CPasteTheme.textMuted)
+            .lineLimit(1)
+            .truncationMode(truncationMode)
+
+        if isSelectable {
+            text.textSelection(.enabled)
+        } else {
+            text
+        }
     }
 
     private func requestClose() {

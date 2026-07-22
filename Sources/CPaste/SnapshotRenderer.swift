@@ -70,6 +70,14 @@ enum SnapshotRenderer {
             to: directory
         )
 
+        try renderSettings(
+            name: "08-settings-privacy.png",
+            store: makeDemoStore(name: "settings-privacy"),
+            appState: makeReadyState(),
+            initialSection: .privacy,
+            to: directory
+        )
+
         try renderSupport(
             name: "06-support.png",
             appState: makeReadyState(),
@@ -281,8 +289,10 @@ enum SnapshotRenderer {
     }
 
     private static func temporaryStoreDirectory(name: String) -> URL {
-        FileManager.default.temporaryDirectory
-            .appendingPathComponent("CPasteSnapshots-\(name)-\(UUID().uuidString)", isDirectory: true)
+        let directory = URL(fileURLWithPath: "/tmp", isDirectory: true)
+            .appendingPathComponent("CPasteSnapshots-\(name)", isDirectory: true)
+        try? FileManager.default.removeItem(at: directory)
+        return directory
     }
 
     private static func demoImageData() -> Data? {
