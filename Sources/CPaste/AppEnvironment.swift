@@ -3,6 +3,7 @@ import Foundation
 
 enum AppEnvironment {
     private static let historyLimitKey = "CPasteHistoryLimit"
+    private static let languageKey = "CPasteLanguage"
     private static let themeStyleKey = "CPasteThemeStyle"
 
     static var storageDirectory: URL {
@@ -25,6 +26,14 @@ enum AppEnvironment {
 
     static func saveHistoryLimit(_ limit: Int) {
         UserDefaults.standard.set(min(max(limit, 50), 5_000), forKey: historyLimitKey)
+    }
+
+    static var language: AppLanguage {
+        AppLanguage.resolved(savedRawValue: UserDefaults.standard.string(forKey: languageKey))
+    }
+
+    static func saveLanguage(_ language: AppLanguage) {
+        UserDefaults.standard.set(language.rawValue, forKey: languageKey)
     }
 
     static var availableThemeStyles: [AppThemeStyle] {

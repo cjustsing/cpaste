@@ -934,15 +934,11 @@ struct HistoryPanelView: View {
         if abs(date.timeIntervalSinceNow) < 60 {
             return CPasteL10n.text("刚刚", "Just now")
         }
-        return Self.relativeFormatter.localizedString(for: date, relativeTo: Date())
-    }
-
-    private static let relativeFormatter: RelativeDateTimeFormatter = {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .short
-        formatter.locale = CPasteL10n.usesChinese ? Locale(identifier: "zh_Hans") : Locale.current
-        return formatter
-    }()
+        formatter.locale = CPasteL10n.locale
+        return formatter.localizedString(for: date, relativeTo: Date())
+    }
 }
 
 private enum HistoryScope: String, CaseIterable, Identifiable {

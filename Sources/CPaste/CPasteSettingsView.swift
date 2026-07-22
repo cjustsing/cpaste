@@ -107,6 +107,7 @@ struct CPasteSettingsView: View {
             Text(CPasteL10n.text("设置", "Settings"))
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(CPasteTheme.textPrimary)
+                .fixedSize(horizontal: true, vertical: false)
 
             Spacer()
 
@@ -122,7 +123,7 @@ struct CPasteSettingsView: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .frame(width: 350)
+            .frame(width: 330)
 
             Button(action: requestClose) {
                 Image(systemName: "xmark")
@@ -171,7 +172,8 @@ struct CPasteSettingsView: View {
             settingsRow(
                 icon: appState.isCapturePaused ? "pause.circle.fill" : "record.circle",
                 title: CPasteL10n.text("剪贴板捕获", "Clipboard Capture"),
-                subtitle: appState.isCapturePaused ? CPasteL10n.text("已暂停", "Paused") : CPasteL10n.text("正在记录", "Recording")
+                subtitle: appState.isCapturePaused ? CPasteL10n.text("已暂停", "Paused") : CPasteL10n.text("正在记录", "Recording"),
+                minHeight: 52
             ) {
                 Toggle("", isOn: captureBinding)
                     .toggleStyle(.switch)
@@ -184,7 +186,8 @@ struct CPasteSettingsView: View {
             settingsRow(
                 icon: "clock.arrow.circlepath",
                 title: CPasteL10n.text("历史容量", "History Capacity"),
-                subtitle: CPasteL10n.text("收藏内容不受容量限制", "Pinned items are always preserved")
+                subtitle: CPasteL10n.text("收藏内容不受容量限制", "Pinned items are always preserved"),
+                minHeight: 52
             ) {
                 Picker("", selection: historyLimitBinding) {
                     Text("50").tag(50)
@@ -201,7 +204,8 @@ struct CPasteSettingsView: View {
             settingsRow(
                 icon: "paintpalette.fill",
                 title: CPasteL10n.text("外观主题", "Appearance Theme"),
-                subtitle: themeSubtitle
+                subtitle: themeSubtitle,
+                minHeight: 52
             ) {
                 Picker("", selection: themeStyleBinding) {
                     ForEach(AppEnvironment.availableThemeStyles, id: \.self) { style in
@@ -216,9 +220,28 @@ struct CPasteSettingsView: View {
             Divider().padding(.leading, 56)
 
             settingsRow(
+                icon: "globe",
+                title: CPasteL10n.text("界面语言", "Interface Language"),
+                subtitle: languageSubtitle,
+                minHeight: 52
+            ) {
+                Picker("", selection: languageBinding) {
+                    ForEach(AppLanguage.allCases, id: \.self) { language in
+                        Text(languageName(language)).tag(language)
+                    }
+                }
+                .labelsHidden()
+                .frame(width: 132)
+                .accessibilityLabel(CPasteL10n.text("界面语言", "Interface Language"))
+            }
+
+            Divider().padding(.leading, 56)
+
+            settingsRow(
                 icon: "keyboard",
                 title: CPasteL10n.text("呼出快捷键", "Activation Shortcut"),
-                subtitle: appState.isHotKeyRegistered ? CPasteL10n.text("全局快捷键可用", "Global shortcut is available") : CPasteL10n.text("快捷键已被其他应用占用", "Shortcut is used by another app")
+                subtitle: appState.isHotKeyRegistered ? CPasteL10n.text("全局快捷键可用", "Global shortcut is available") : CPasteL10n.text("快捷键已被其他应用占用", "Shortcut is used by another app"),
+                minHeight: 52
             ) {
                 Text("⇧⌘V")
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
@@ -233,7 +256,8 @@ struct CPasteSettingsView: View {
             settingsRow(
                 icon: hasAccessibilityPermission ? "checkmark.shield.fill" : "lock.open.fill",
                 title: CPasteL10n.text("直接粘贴", "Direct Paste"),
-                subtitle: hasAccessibilityPermission ? CPasteL10n.text("辅助功能权限已开启", "Accessibility access is enabled") : CPasteL10n.text("当前会复制到系统剪贴板", "Currently copies back to the clipboard")
+                subtitle: hasAccessibilityPermission ? CPasteL10n.text("辅助功能权限已开启", "Accessibility access is enabled") : CPasteL10n.text("当前会复制到系统剪贴板", "Currently copies back to the clipboard"),
+                minHeight: 52
             ) {
                 if hasAccessibilityPermission {
                     Image(systemName: "checkmark.circle.fill")
@@ -499,11 +523,13 @@ struct CPasteSettingsView: View {
         icon: String,
         title: String,
         subtitle: String,
+        minHeight: CGFloat = 62,
         @ViewBuilder accessory: () -> Accessory
     ) -> some View {
         settingsRowContent(
             title: title,
             subtitle: subtitle,
+            minHeight: minHeight,
             icon: {
                 Image(systemName: icon)
                     .font(.system(size: 15, weight: .semibold))
@@ -517,6 +543,7 @@ struct CPasteSettingsView: View {
     private func settingsRowContent<Icon: View, Accessory: View>(
         title: String,
         subtitle: String,
+        minHeight: CGFloat = 62,
         @ViewBuilder icon: () -> Icon,
         @ViewBuilder accessory: () -> Accessory
     ) -> some View {
@@ -536,7 +563,7 @@ struct CPasteSettingsView: View {
             Spacer(minLength: 12)
             accessory()
         }
-        .frame(minHeight: 62)
+        .frame(minHeight: minHeight)
         .padding(.horizontal, 14)
     }
 
@@ -569,6 +596,31 @@ struct CPasteSettingsView: View {
             get: { appState.themeStyle },
             set: appState.setThemeStyle
         )
+    }
+
+    private var languageBinding: Binding<AppLanguage> {
+        Binding(
+            get: { appState.language },
+            set: appState.setLanguage
+        )
+    }
+
+    private var languageSubtitle: String {
+        if appState.language == .system {
+            return CPasteL10n.text("根据 macOS 语言自动选择", "Automatically follows macOS")
+        }
+        return CPasteL10n.text("更改会立即生效", "Changes apply immediately")
+    }
+
+    private func languageName(_ language: AppLanguage) -> String {
+        switch language {
+        case .system:
+            return CPasteL10n.text("跟随系统", "System")
+        case .simplifiedChinese:
+            return "简体中文"
+        case .english:
+            return "English"
+        }
     }
 
     private var themeSubtitle: String {

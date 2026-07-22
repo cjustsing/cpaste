@@ -9,6 +9,14 @@ swift build -c release --arch arm64
 ./scripts/build_app.sh >/tmp/cpaste-build.out
 cat /tmp/cpaste-build.out
 plutil -lint build/CPaste.app/Contents/Info.plist
+if [[ "$(plutil -extract CFBundleLocalizations.0 raw build/CPaste.app/Contents/Info.plist)" != "en" ]]; then
+  echo "English localization is missing from the app bundle" >&2
+  exit 1
+fi
+if [[ "$(plutil -extract CFBundleLocalizations.1 raw build/CPaste.app/Contents/Info.plist)" != "zh-Hans" ]]; then
+  echo "Simplified Chinese localization is missing from the app bundle" >&2
+  exit 1
+fi
 ICON_FILE="$(plutil -extract CFBundleIconFile raw build/CPaste.app/Contents/Info.plist)"
 if [[ "$ICON_FILE" != "CPaste.icns" ]]; then
   echo "Unexpected CFBundleIconFile: $ICON_FILE" >&2

@@ -759,6 +759,41 @@ func testThemeAvailabilityAndDefaultsFollowMacOSVersion() {
     )
 }
 
+func testLanguageResolutionAndSystemPreference() {
+    check(
+        AppLanguage.resolved(savedRawValue: nil) == .system,
+        "an unset language should follow the system"
+    )
+    check(
+        AppLanguage.resolved(savedRawValue: AppLanguage.english.rawValue) == .english,
+        "a saved English choice should be preserved"
+    )
+    check(
+        AppLanguage.resolved(savedRawValue: AppLanguage.simplifiedChinese.rawValue) == .simplifiedChinese,
+        "a saved Simplified Chinese choice should be preserved"
+    )
+    check(
+        AppLanguage.resolved(savedRawValue: "unknown") == .system,
+        "an invalid saved language should safely fall back to the system"
+    )
+    check(
+        AppLanguage.system.usesChinese(preferredLanguages: ["zh-Hans-CN", "en-US"]),
+        "system language should select Chinese when the primary language is Chinese"
+    )
+    check(
+        !AppLanguage.system.usesChinese(preferredLanguages: ["en-US", "zh-Hans-CN"]),
+        "system language should select English when the primary language is not Chinese"
+    )
+    check(
+        AppLanguage.simplifiedChinese.usesChinese(preferredLanguages: ["en-US"]),
+        "an explicit Chinese choice should override the system"
+    )
+    check(
+        !AppLanguage.english.usesChinese(preferredLanguages: ["zh-Hans-CN"]),
+        "an explicit English choice should override the system"
+    )
+}
+
 func testThemeResolutionPreservesValidChoicesAndRejectsUnsupportedGlass() {
     check(
         AppThemeStyle.resolved(savedRawValue: AppThemeStyle.standard.rawValue, onMacOSMajorVersion: 26) == .standard,
@@ -829,6 +864,7 @@ testPanelPlacementFollowsMouseAndUsesFullScreenWidth()
 testHiddenPanelCanBePreparedBeforePresentation()
 testPanelRecreationTracksDisplayGeometryAndBackingScale()
 testThemeAvailabilityAndDefaultsFollowMacOSVersion()
+testLanguageResolutionAndSystemPreference()
 testThemeResolutionPreservesValidChoicesAndRejectsUnsupportedGlass()
 testPresentationStateClosesOnlyTheTopmostInterface()
 

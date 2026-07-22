@@ -1,6 +1,6 @@
 # CPaste
 
-CPaste is a local, Apple Silicon native clipboard history app for macOS. It uses an original horizontal visual timeline with source-app badges, instant search, pinned items, keyboard navigation, drag out, preview, and quick paste.
+CPaste is a local, Apple Silicon native clipboard history app for macOS. It uses an original horizontal visual timeline with source-app badges, instant search, pinned items, keyboard navigation, drag out, preview, and quick paste. The interface supports English and Simplified Chinese.
 
 ![CPaste app icon](Resources/AppIcon/AppIcon-1024.png)
 
@@ -49,6 +49,8 @@ open build/CPaste.app
 ```
 
 The app lives in the menu bar. Press `Command+Shift+V` to open the history panel.
+
+CPaste follows the macOS language by default. You can also choose `System`, `简体中文`, or `English` in Settings > General > Interface Language; the change takes effect immediately.
 
 Full user manual:
 

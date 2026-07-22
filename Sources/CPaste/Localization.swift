@@ -2,8 +2,14 @@ import CPasteCore
 import Foundation
 
 enum CPasteL10n {
+    static var language = AppEnvironment.language
+
     static var usesChinese: Bool {
-        Locale.preferredLanguages.first?.lowercased().hasPrefix("zh") == true
+        language.usesChinese(preferredLanguages: Locale.preferredLanguages)
+    }
+
+    static var locale: Locale {
+        Locale(identifier: usesChinese ? "zh-Hans" : "en")
     }
 
     static func text(_ chinese: String, _ english: String) -> String {
@@ -34,7 +40,9 @@ extension ClipboardItem {
             if lineCount > 1 {
                 return CPasteL10n.text("\(lineCount) 行", "\(lineCount) lines")
             }
-            return CPasteL10n.text("\(text.count) 个字符", "\(text.count) characters")
+            let characterCount = text.count
+            let english = characterCount == 1 ? "1 character" : "\(characterCount) characters"
+            return CPasteL10n.text("\(characterCount) 个字符", english)
         case .url:
             return CPasteL10n.text("链接", "URL")
         case .file:
