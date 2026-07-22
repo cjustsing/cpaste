@@ -36,8 +36,7 @@ struct HistoryPanelView: View {
     @State private var scope: HistoryScope = .history
     @State private var selectedID: UUID?
     @State private var isInspectorPresented: Bool
-    @State private var isSettingsPresented = false
-    @State private var isConfirmingClear = false
+    @State private var presentationState = HistoryPanelPresentationState()
     @State private var animateNextSelectionScroll = false
     @State private var thumbnailPrefetchTask: Task<Void, Never>?
     @FocusState private var isSearchFocused: Bool
@@ -126,10 +125,12 @@ struct HistoryPanelView: View {
         .onDisappear {
             thumbnailPrefetchTask?.cancel()
         }
-        .sheet(isPresented: $isSettingsPresented) {
-            CPasteSettingsView(store: store, appState: appState, actions: actions)
+        .sheet(isPresented: $presentationState.isSettingsPresented) {
+            CPasteSettingsView(store: store, appState: appState, actions: actions) {
+                presentationState.isSettingsPresented = false
+            }
         }
-        .confirmationDialog(CPasteL10n.text("清空未收藏的历史记录？", "Clear unpinned history?"), isPresented: $isConfirmingClear) {
+        .confirmationDialog(CPasteL10n.text("清空未收藏的历史记录？", "Clear unpinned history?"), isPresented: $presentationState.isConfirmingClear) {
             Button(CPasteL10n.text("清空", "Clear"), role: .destructive) {
                 actions.clearUnpinned()
             }
@@ -474,7 +475,7 @@ struct HistoryPanelView: View {
 
     private var settingsButton: some View {
         Button {
-            isSettingsPresented = true
+            presentationState.isSettingsPresented = true
         } label: {
             Image(systemName: "gearshape")
         }
@@ -485,7 +486,7 @@ struct HistoryPanelView: View {
 
     private var closeButton: some View {
         Button {
-            actions.close()
+            closePanel()
         } label: {
             Image(systemName: "xmark")
         }
@@ -516,7 +517,7 @@ struct HistoryPanelView: View {
             }
 
             Button {
-                isSettingsPresented = true
+                presentationState.isSettingsPresented = true
             } label: {
                 Label(CPasteL10n.text("设置", "Settings"), systemImage: "gearshape")
             }
@@ -524,7 +525,7 @@ struct HistoryPanelView: View {
             Divider()
 
             Button(role: .destructive) {
-                isConfirmingClear = true
+                presentationState.isConfirmingClear = true
             } label: {
                 Label(CPasteL10n.text("清空未收藏历史", "Clear Unpinned History"), systemImage: "trash")
             }
@@ -764,7 +765,7 @@ struct HistoryPanelView: View {
             if !searchText.isEmpty {
                 searchText = ""
             } else {
-                actions.close()
+                closePanel()
             }
         case .toggleInspector:
             toggleInspector()
@@ -788,7 +789,7 @@ struct HistoryPanelView: View {
         case .showPinned:
             selectScope(.pinned)
         case .showSettings:
-            isSettingsPresented = true
+            presentationState.isSettingsPresented = true
         case .toggleCapture:
             actions.toggleCapture()
         }
@@ -891,6 +892,7 @@ struct HistoryPanelView: View {
     }
 
     private func prepareForPresentation() {
+        presentationState.resetTransientUI()
         searchText = ""
         let items = store.filteredItems(
             search: "",
@@ -899,6 +901,11 @@ struct HistoryPanelView: View {
         )
         setSelection(items.first?.id, animateScroll: false)
         isSearchFocused = false
+    }
+
+    private func closePanel() {
+        presentationState.resetTransientUI()
+        actions.close()
     }
 
     private func prefetchThumbnails(around selectedID: UUID, in items: [ClipboardItem]) {

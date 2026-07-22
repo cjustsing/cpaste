@@ -778,6 +778,25 @@ func testThemeResolutionPreservesValidChoicesAndRejectsUnsupportedGlass() {
     )
 }
 
+func testPresentationStateClosesOnlyTheTopmostInterface() {
+    var settings = SettingsPresentationState()
+    settings.presentSupport()
+
+    check(settings.isSupportPresented, "support should be presented after the support action")
+    check(!settings.handleCloseRequest(), "the first close should stay inside settings")
+    check(!settings.isSupportPresented, "the first close should dismiss support")
+    check(settings.handleCloseRequest(), "the next close should close settings")
+
+    var panel = HistoryPanelPresentationState(
+        isSettingsPresented: true,
+        isConfirmingClear: true
+    )
+    panel.resetTransientUI()
+
+    check(!panel.isSettingsPresented, "a new panel presentation should not preserve settings")
+    check(!panel.isConfirmingClear, "a new panel presentation should not preserve confirmation UI")
+}
+
 testInsertDeduplicatesByContentHashAndMovesToTop()
 testClearUnpinnedPreservesPinnedItems()
 testTimelineSelectionUsesPreviousVisibleItemAfterRemoval()
@@ -807,5 +826,6 @@ testHiddenPanelCanBePreparedBeforePresentation()
 testPanelRecreationTracksDisplayGeometryAndBackingScale()
 testThemeAvailabilityAndDefaultsFollowMacOSVersion()
 testThemeResolutionPreservesValidChoicesAndRejectsUnsupportedGlass()
+testPresentationStateClosesOnlyTheTopmostInterface()
 
 print("CPasteCoreChecks passed")

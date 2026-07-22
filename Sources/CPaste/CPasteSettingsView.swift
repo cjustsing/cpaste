@@ -6,14 +6,77 @@ struct CPasteSettingsView: View {
     @ObservedObject var store: ClipboardStore
     @ObservedObject var appState: AppState
     let actions: HistoryPanelActions
+    let onClose: () -> Void
 
-    @Environment(\.dismiss) private var dismiss
-    @State private var section: SettingsSection = .general
+    @State private var section: SettingsSection
     @State private var hasAccessibilityPermission = false
     @State private var isConfirmingClear = false
-    @State private var isSupportPresented = false
+    @State private var presentationState: SettingsPresentationState
+
+    init(
+        store: ClipboardStore,
+        appState: AppState,
+        actions: HistoryPanelActions,
+        initialSection: SettingsSection = .general,
+        initialSupportPresented: Bool = false,
+        onClose: @escaping () -> Void = {}
+    ) {
+        self.store = store
+        self.appState = appState
+        self.actions = actions
+        self.onClose = onClose
+        _section = State(initialValue: initialSection)
+        _presentationState = State(initialValue: SettingsPresentationState(isSupportPresented: initialSupportPresented))
+    }
 
     var body: some View {
+        Group {
+            if presentationState.isSupportPresented {
+                CPasteSupportView {
+                    presentationState.dismissSupport()
+                }
+            } else {
+                settingsContent
+            }
+        }
+        .frame(width: 560, height: usesLiquidGlassLayout ? 420 : 390)
+        .background {
+            if usesLiquidGlassLayout {
+                CPasteLiquidCanvas()
+            } else {
+                ZStack {
+                    VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
+                    CPasteTheme.background.opacity(0.82)
+                }
+                .ignoresSafeArea()
+            }
+        }
+        .onExitCommand {
+            if presentationState.handleCloseRequest() {
+                closeSettings()
+            }
+        }
+        .onAppear {
+            hasAccessibilityPermission = actions.hasAccessibilityPermission()
+        }
+        .onDisappear {
+            presentationState.reset()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            hasAccessibilityPermission = actions.hasAccessibilityPermission()
+        }
+        .confirmationDialog(CPasteL10n.text("清空未收藏的历史记录？", "Clear unpinned history?"), isPresented: $isConfirmingClear) {
+            Button(CPasteL10n.text("清空", "Clear"), role: .destructive) {
+                actions.clearUnpinned()
+            }
+            Button(CPasteL10n.text("取消", "Cancel"), role: .cancel) {}
+        } message: {
+            Text(CPasteL10n.text("已收藏的内容会保留。", "Pinned items will stay in CPaste."))
+        }
+        .environment(\.cpasteThemeStyle, appState.themeStyle)
+    }
+
+    private var settingsContent: some View {
         VStack(spacing: 0) {
             header
             if !usesLiquidGlassLayout {
@@ -34,51 +97,6 @@ struct CPasteSettingsView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
-        .frame(width: 560, height: usesLiquidGlassLayout ? 420 : 390)
-        .background {
-            if usesLiquidGlassLayout {
-                CPasteLiquidCanvas()
-            } else {
-                ZStack {
-                    VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
-                    CPasteTheme.background.opacity(0.82)
-                }
-                .ignoresSafeArea()
-            }
-        }
-        .allowsHitTesting(!isSupportPresented)
-        .accessibilityHidden(isSupportPresented)
-        .overlay {
-            if isSupportPresented {
-                CPasteSupportView {
-                    isSupportPresented = false
-                }
-                .transition(.opacity)
-            }
-        }
-        .animation(.easeOut(duration: 0.14), value: isSupportPresented)
-        .onExitCommand {
-            if isSupportPresented {
-                isSupportPresented = false
-            } else {
-                dismiss()
-            }
-        }
-        .onAppear {
-            hasAccessibilityPermission = actions.hasAccessibilityPermission()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            hasAccessibilityPermission = actions.hasAccessibilityPermission()
-        }
-        .confirmationDialog(CPasteL10n.text("清空未收藏的历史记录？", "Clear unpinned history?"), isPresented: $isConfirmingClear) {
-            Button(CPasteL10n.text("清空", "Clear"), role: .destructive) {
-                actions.clearUnpinned()
-            }
-            Button(CPasteL10n.text("取消", "Cancel"), role: .cancel) {}
-        } message: {
-            Text(CPasteL10n.text("已收藏的内容会保留。", "Pinned items will stay in CPaste."))
-        }
-        .environment(\.cpasteThemeStyle, appState.themeStyle)
     }
 
     @ViewBuilder
@@ -110,9 +128,7 @@ struct CPasteSettingsView: View {
             .labelsHidden()
             .frame(width: 350)
 
-            Button {
-                dismiss()
-            } label: {
+            Button(action: closeSettings) {
                 Image(systemName: "xmark")
             }
             .buttonStyle(CPasteIconButtonStyle())
@@ -369,25 +385,31 @@ struct CPasteSettingsView: View {
                 subtitle: CPasteL10n.text("完全自愿，不影响任何功能", "Entirely optional; no features are affected")
             ) {
                 Button(CPasteL10n.text("查看收款码", "View Codes")) {
-                    isSupportPresented = true
+                    presentationState.presentSupport()
                 }
                 .controlSize(.small)
             }
 
             Divider().padding(.leading, 56)
 
-            settingsRow(
-                icon: "chevron.left.forwardslash.chevron.right",
+            settingsRowContent(
                 title: CPasteL10n.text("GitHub 项目", "GitHub Project"),
-                subtitle: "github.com/cjustsing/cpaste"
-            ) {
-                Button(CPasteL10n.text("打开", "Open")) {
-                    guard let url = URL(string: "https://github.com/cjustsing/cpaste") else { return }
-                    NSWorkspace.shared.open(url)
+                subtitle: "github.com/cjustsing/cpaste",
+                icon: {
+                    GitHubMark()
+                        .foregroundStyle(CPasteTheme.accent)
+                        .frame(width: 18, height: 18)
+                        .frame(width: 26, height: 26)
+                },
+                accessory: {
+                    Button(CPasteL10n.text("打开", "Open")) {
+                        guard let url = URL(string: "https://github.com/cjustsing/cpaste") else { return }
+                        NSWorkspace.shared.open(url)
+                    }
+                    .controlSize(.small)
+                    .accessibilityLabel(CPasteL10n.text("打开 CPaste GitHub 项目", "Open the CPaste GitHub project"))
                 }
-                .controlSize(.small)
-                .accessibilityLabel(CPasteL10n.text("打开 CPaste GitHub 项目", "Open the CPaste GitHub project"))
-            }
+            )
 
             Divider().padding(.leading, 56)
 
@@ -483,11 +505,27 @@ struct CPasteSettingsView: View {
         subtitle: String,
         @ViewBuilder accessory: () -> Accessory
     ) -> some View {
+        settingsRowContent(
+            title: title,
+            subtitle: subtitle,
+            icon: {
+                Image(systemName: icon)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(CPasteTheme.accent)
+                    .frame(width: 26, height: 26)
+            },
+            accessory: accessory
+        )
+    }
+
+    private func settingsRowContent<Icon: View, Accessory: View>(
+        title: String,
+        subtitle: String,
+        @ViewBuilder icon: () -> Icon,
+        @ViewBuilder accessory: () -> Accessory
+    ) -> some View {
         HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(CPasteTheme.accent)
-                .frame(width: 26, height: 26)
+            icon()
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
@@ -504,6 +542,11 @@ struct CPasteSettingsView: View {
         }
         .frame(minHeight: 62)
         .padding(.horizontal, 14)
+    }
+
+    private func closeSettings() {
+        presentationState.reset()
+        onClose()
     }
 
     private var captureBinding: Binding<Bool> {
@@ -559,13 +602,46 @@ struct CPasteSettingsView: View {
     }
 }
 
-private enum SettingsSection: String, CaseIterable, Identifiable {
+enum SettingsSection: String, CaseIterable, Identifiable {
     case general
     case privacy
     case shortcuts
     case about
 
     var id: String { rawValue }
+}
+
+private struct GitHubMark: View {
+    var body: some View {
+        Group {
+            if let image = GitHubMarkAssetLoader.image {
+                Image(nsImage: image)
+                    .resizable()
+                    .renderingMode(.template)
+                    .scaledToFit()
+            } else {
+                Image(systemName: "link")
+                    .font(.system(size: 15, weight: .semibold))
+            }
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+private enum GitHubMarkAssetLoader {
+    static let image: NSImage? = {
+        if let bundledURL = Bundle.main.url(
+            forResource: "github-mark",
+            withExtension: "svg",
+            subdirectory: "Brand"
+        ), let image = NSImage(contentsOf: bundledURL) {
+            return image
+        }
+
+        let developmentURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
+            .appendingPathComponent("Resources/Brand/github-mark.svg", isDirectory: false)
+        return NSImage(contentsOf: developmentURL)
+    }()
 }
 
 private struct SettingsShortcut: Identifiable {

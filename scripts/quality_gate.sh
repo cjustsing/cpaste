@@ -18,6 +18,12 @@ if [[ ! -s "build/CPaste.app/Contents/Resources/$ICON_FILE" ]]; then
   echo "Missing packaged app icon: $ICON_FILE" >&2
   exit 1
 fi
+for legal_file in LICENSE NOTICE; do
+  if ! cmp -s "$legal_file" "build/CPaste.app/Contents/Resources/$legal_file"; then
+    echo "Packaged $legal_file differs from source" >&2
+    exit 1
+  fi
+done
 for support_asset in alipay-support-qr.png wechat-support-qr.png; do
   packaged_asset="build/CPaste.app/Contents/Resources/Support/$support_asset"
   if [[ ! -s "$packaged_asset" ]]; then
@@ -29,6 +35,10 @@ for support_asset in alipay-support-qr.png wechat-support-qr.png; do
     exit 1
   fi
 done
+if ! cmp -s "Resources/Brand/github-mark.svg" "build/CPaste.app/Contents/Resources/Brand/github-mark.svg"; then
+  echo "Packaged GitHub mark differs from source" >&2
+  exit 1
+fi
 file "build/CPaste.app/Contents/Resources/$ICON_FILE" | rg "Mac OS X icon"
 file build/CPaste.app/Contents/MacOS/CPaste
 lipo -archs build/CPaste.app/Contents/MacOS/CPaste

@@ -62,6 +62,14 @@ enum SnapshotRenderer {
             to: directory
         )
 
+        try renderSettings(
+            name: "07-settings-about.png",
+            store: makeDemoStore(name: "settings-about"),
+            appState: makeReadyState(),
+            initialSection: .about,
+            to: directory
+        )
+
         try renderSupport(
             name: "06-support.png",
             appState: makeReadyState(),
@@ -94,13 +102,15 @@ enum SnapshotRenderer {
         name: String,
         store: ClipboardStore,
         appState: AppState,
+        initialSection: SettingsSection = .general,
         to directory: URL
     ) throws {
         let size = NSSize(width: 560, height: 390)
         let view = CPasteSettingsView(
             store: store,
             appState: appState,
-            actions: makeActions(store: store, appState: appState)
+            actions: makeActions(store: store, appState: appState),
+            initialSection: initialSection
         )
         .preferredColorScheme(.dark)
 
@@ -112,10 +122,15 @@ enum SnapshotRenderer {
         appState: AppState,
         to directory: URL
     ) throws {
-        let size = NSSize(width: 560, height: 420)
-        let view = CPasteSupportView()
-            .frame(width: size.width, height: size.height)
-            .environment(\.cpasteThemeStyle, appState.themeStyle)
+        let size = NSSize(width: 560, height: 390)
+        let store = makeDemoStore(name: "support")
+        let view = CPasteSettingsView(
+            store: store,
+            appState: appState,
+            actions: makeActions(store: store, appState: appState),
+            initialSection: .about,
+            initialSupportPresented: true
+        )
             .preferredColorScheme(.dark)
 
         try render(view, size: size, to: directory.appendingPathComponent(name, isDirectory: false))

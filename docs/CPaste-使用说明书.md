@@ -1,6 +1,6 @@
 # CPaste 使用说明书
 
-适用版本：CPaste `0.3.1 (4)`
+适用版本：CPaste `0.3.2 (5)`
 适用系统：macOS 13 及以上  
 处理器：Apple Silicon，当前交付包为原生 `arm64`
 
@@ -112,7 +112,7 @@ arm64
 
 ## 5. 实际效果图
 
-以下图片由 `0.3.1` release 二进制直接渲染，使用与正式应用相同的 SwiftUI/AppKit 视图和数据流。
+以下图片由 `0.3.2` release 二进制直接渲染，使用与正式应用相同的 SwiftUI/AppKit 视图和数据流。
 
 ### 5.1 时间轴总览
 
@@ -149,6 +149,8 @@ arm64
 ![CPaste 设置页](screenshots/timeline-refactor/05-settings.png)
 
 设置页集中管理捕获状态、历史容量、快捷键状态、辅助功能权限、本地数据说明和应用信息。“关于”页提供 GitHub 项目快捷入口，以及完全自愿的 CPaste 赞赏入口。
+
+![CPaste 关于页](screenshots/timeline-refactor/07-settings-about.png)
 
 ![CPaste 赞赏页](screenshots/timeline-refactor/06-support.png)
 
