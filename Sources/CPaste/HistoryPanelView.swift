@@ -126,9 +126,7 @@ struct HistoryPanelView: View {
             thumbnailPrefetchTask?.cancel()
         }
         .sheet(isPresented: $presentationState.isSettingsPresented) {
-            CPasteSettingsView(store: store, appState: appState, actions: actions) {
-                presentationState.isSettingsPresented = false
-            }
+            CPasteSettingsView(store: store, appState: appState, actions: actions)
         }
         .confirmationDialog(CPasteL10n.text("清空未收藏的历史记录？", "Clear unpinned history?"), isPresented: $presentationState.isConfirmingClear) {
             Button(CPasteL10n.text("清空", "Clear"), role: .destructive) {

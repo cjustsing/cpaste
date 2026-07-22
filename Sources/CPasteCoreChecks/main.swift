@@ -780,6 +780,10 @@ func testThemeResolutionPreservesValidChoicesAndRejectsUnsupportedGlass() {
 
 func testPresentationStateClosesOnlyTheTopmostInterface() {
     var settings = SettingsPresentationState()
+
+    check(settings.handleCloseRequest(), "settings should request its sheet to close immediately")
+    check(!settings.isSupportPresented, "closing settings must not create secondary presentation state")
+
     settings.presentSupport()
 
     check(settings.isSupportPresented, "support should be presented after the support action")

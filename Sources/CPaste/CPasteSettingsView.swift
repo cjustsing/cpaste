@@ -6,8 +6,8 @@ struct CPasteSettingsView: View {
     @ObservedObject var store: ClipboardStore
     @ObservedObject var appState: AppState
     let actions: HistoryPanelActions
-    let onClose: () -> Void
 
+    @Environment(\.dismiss) private var dismiss
     @State private var section: SettingsSection
     @State private var hasAccessibilityPermission = false
     @State private var isConfirmingClear = false
@@ -18,13 +18,11 @@ struct CPasteSettingsView: View {
         appState: AppState,
         actions: HistoryPanelActions,
         initialSection: SettingsSection = .general,
-        initialSupportPresented: Bool = false,
-        onClose: @escaping () -> Void = {}
+        initialSupportPresented: Bool = false
     ) {
         self.store = store
         self.appState = appState
         self.actions = actions
-        self.onClose = onClose
         _section = State(initialValue: initialSection)
         _presentationState = State(initialValue: SettingsPresentationState(isSupportPresented: initialSupportPresented))
     }
@@ -33,7 +31,7 @@ struct CPasteSettingsView: View {
         Group {
             if presentationState.isSupportPresented {
                 CPasteSupportView {
-                    presentationState.dismissSupport()
+                    requestClose()
                 }
             } else {
                 settingsContent
@@ -52,9 +50,7 @@ struct CPasteSettingsView: View {
             }
         }
         .onExitCommand {
-            if presentationState.handleCloseRequest() {
-                closeSettings()
-            }
+            requestClose()
         }
         .onAppear {
             hasAccessibilityPermission = actions.hasAccessibilityPermission()
@@ -128,7 +124,7 @@ struct CPasteSettingsView: View {
             .labelsHidden()
             .frame(width: 350)
 
-            Button(action: closeSettings) {
+            Button(action: requestClose) {
                 Image(systemName: "xmark")
             }
             .buttonStyle(CPasteIconButtonStyle())
@@ -544,9 +540,10 @@ struct CPasteSettingsView: View {
         .padding(.horizontal, 14)
     }
 
-    private func closeSettings() {
-        presentationState.reset()
-        onClose()
+    private func requestClose() {
+        if presentationState.handleCloseRequest() {
+            dismiss()
+        }
     }
 
     private var captureBinding: Binding<Bool> {
