@@ -1,0 +1,78 @@
+name: Bug report
+description: Report reproducible behavior that is not working as expected.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve CPaste. Please remove clipboard contents, names, account details, and other private data from screenshots and logs before submitting.
+
+  - type: input
+    id: version
+    attributes:
+      label: CPaste version
+      description: Find this in CPaste Settings > About or in the release filename.
+      placeholder: "0.4.0"
+    validations:
+      required: true
+
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: "macOS 26.0"
+    validations:
+      required: true
+
+  - type: input
+    id: hardware
+    attributes:
+      label: Mac model
+      description: Include the Apple Silicon model if known.
+      placeholder: "MacBook Pro (M4 Pro)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe the problem and its impact.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open ...
+        2. Select ...
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Screenshots or logs
+      description: Optional. Redact clipboard contents and all personal or confidential information.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-submission checklist
+      options:
+        - label: I searched existing issues for the same problem.
+          required: true
+        - label: I removed private clipboard data and personal information from all attachments.
+          required: true

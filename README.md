@@ -6,6 +6,12 @@ CPaste is a local, Apple Silicon native clipboard history app for macOS. It uses
 
 ![CPaste Liquid Glass timeline](docs/screenshots/timeline-refactor/01-timeline-overview.png)
 
+## Download
+
+Download the latest Apple Silicon build from [GitHub Releases](https://github.com/cjustsing/cpaste/releases/latest). CPaste requires macOS 13 or later.
+
+The current release is signed ad hoc and is not Apple-notarized. On first launch, macOS may require you to right-click `CPaste.app`, choose **Open**, and confirm. You can verify the download with the SHA-256 checksum published alongside the release asset.
+
 ## Build
 
 ```sh
