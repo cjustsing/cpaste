@@ -47,7 +47,7 @@ if ! cmp -s "Resources/Brand/github-mark.svg" "build/CPaste.app/Contents/Resourc
   echo "Packaged GitHub mark differs from source" >&2
   exit 1
 fi
-file "build/CPaste.app/Contents/Resources/$ICON_FILE" | rg "Mac OS X icon"
+file "build/CPaste.app/Contents/Resources/$ICON_FILE" | grep -F "Mac OS X icon"
 file build/CPaste.app/Contents/MacOS/CPaste
 lipo -archs build/CPaste.app/Contents/MacOS/CPaste
 codesign --verify --deep --strict --verbose=2 build/CPaste.app
