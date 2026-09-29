@@ -47,10 +47,22 @@ for support_asset in alipay-support-qr.png wechat-support-qr.png; do
     exit 1
   fi
 done
-if ! cmp -s "Resources/Brand/github-mark.svg" "build/CPaste.app/Contents/Resources/Brand/github-mark.svg"; then
-  echo "Packaged GitHub mark differs from source" >&2
-  exit 1
-fi
+for brand_asset in github-mark.svg toolbar-icon.png toolbar-icon@2x.png; do
+  if ! cmp -s "Resources/Brand/$brand_asset" "build/CPaste.app/Contents/Resources/Brand/$brand_asset"; then
+    echo "Packaged brand asset differs from source: $brand_asset" >&2
+    exit 1
+  fi
+done
+for icon_spec in toolbar-icon.png:28 toolbar-icon@2x.png:56; do
+  icon_file="${icon_spec%:*}"
+  icon_size="${icon_spec#*:}"
+  dimensions="$(sips -g pixelWidth -g pixelHeight "Resources/Brand/$icon_file")"
+  if [[ "$(awk '/pixelWidth:/{print $2}' <<< "$dimensions")" != "$icon_size" ||
+        "$(awk '/pixelHeight:/{print $2}' <<< "$dimensions")" != "$icon_size" ]]; then
+    echo "Incorrect pixel dimensions for toolbar asset: $icon_file" >&2
+    exit 1
+  fi
+done
 file "build/CPaste.app/Contents/Resources/$ICON_FILE" | grep -F "Mac OS X icon"
 file build/CPaste.app/Contents/MacOS/CPaste
 lipo -archs build/CPaste.app/Contents/MacOS/CPaste

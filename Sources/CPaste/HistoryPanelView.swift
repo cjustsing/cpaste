@@ -271,12 +271,7 @@ struct HistoryPanelView: View {
     @ViewBuilder
     private func brand(showName: Bool) -> some View {
         let content = HStack(spacing: 8) {
-            Image(nsImage: NSApp.applicationIconImage)
-                .resizable()
-                .interpolation(.high)
-                .scaledToFit()
-                .frame(width: 30, height: 30)
-                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+            ToolbarBrandIcon()
 
             if showName {
                 Text("CPaste")

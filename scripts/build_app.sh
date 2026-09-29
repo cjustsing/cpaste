@@ -36,10 +36,12 @@ for support_asset in alipay-support-qr.png wechat-support-qr.png; do
   fi
 done
 
-if [[ ! -f "$BRAND_ASSETS_DIR/github-mark.svg" ]]; then
-  echo "Unable to locate GitHub mark at $BRAND_ASSETS_DIR/github-mark.svg" >&2
-  exit 1
-fi
+for brand_asset in github-mark.svg toolbar-icon.png toolbar-icon@2x.png; do
+  if [[ ! -f "$BRAND_ASSETS_DIR/$brand_asset" ]]; then
+    echo "Unable to locate brand asset at $BRAND_ASSETS_DIR/$brand_asset" >&2
+    exit 1
+  fi
+done
 
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR/Support" "$RESOURCES_DIR/Brand"
@@ -49,7 +51,9 @@ cp "$ROOT_DIR/LICENSE" "$RESOURCES_DIR/LICENSE"
 cp "$ROOT_DIR/NOTICE" "$RESOURCES_DIR/NOTICE"
 cp "$SUPPORT_ASSETS_DIR/alipay-support-qr.png" "$RESOURCES_DIR/Support/alipay-support-qr.png"
 cp "$SUPPORT_ASSETS_DIR/wechat-support-qr.png" "$RESOURCES_DIR/Support/wechat-support-qr.png"
-cp "$BRAND_ASSETS_DIR/github-mark.svg" "$RESOURCES_DIR/Brand/github-mark.svg"
+for brand_asset in github-mark.svg toolbar-icon.png toolbar-icon@2x.png; do
+  cp "$BRAND_ASSETS_DIR/$brand_asset" "$RESOURCES_DIR/Brand/$brand_asset"
+done
 
 cat > "$CONTENTS_DIR/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -78,9 +82,9 @@ cat > "$CONTENTS_DIR/Info.plist" <<'PLIST'
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>0.4.6</string>
+  <string>0.4.7</string>
   <key>CFBundleVersion</key>
-  <string>13</string>
+  <string>14</string>
   <key>LSMinimumSystemVersion</key>
   <string>13.0</string>
   <key>LSUIElement</key>

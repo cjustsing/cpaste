@@ -34,7 +34,7 @@ guard let solidTile = opaqueTile.cgImage else { fatalError("Could not normalize 
 let iconset = directory.appendingPathComponent("AppIcon.iconset", isDirectory: true)
 try FileManager.default.createDirectory(at: iconset, withIntermediateDirectories: true)
 
-func render(size: Int, to url: URL) throws {
+func render(size: Int, toolbar: Bool = false, to url: URL) throws {
     guard let context = CGContext(
         data: nil, width: size, height: size, bitsPerComponent: 8, bytesPerRow: 0,
         space: CGColorSpace(name: CGColorSpace.sRGB)!,
@@ -46,8 +46,11 @@ func render(size: Int, to url: URL) throws {
     context.interpolationQuality = .high
     // Fit the opaque square tile at the normal macOS icon inset.
     // Crop only the background so the cards retain their original proportions.
-    let scale = 824.0 / 1_002.0
-    let bounds = CGRect(x: 100, y: 100, width: 824, height: 824)
+    // Toolbar assets fill their final 28 pt slot instead of shrinking the inset again.
+    let bounds = toolbar
+        ? CGRect(x: 0, y: 0, width: 1_024, height: 1_024)
+        : CGRect(x: 100, y: 100, width: 824, height: 824)
+    let scale = bounds.width / 1_002.0
     context.addPath(CGPath(
         roundedRect: bounds, cornerWidth: 252 * scale, cornerHeight: 252 * scale, transform: nil
     ))
@@ -77,4 +80,9 @@ process.arguments = ["-c", "icns", iconset.path, "-o", directory.appendingPathCo
 try process.run()
 process.waitUntilExit()
 guard process.terminationStatus == 0 else { fatalError("iconutil failed") }
-print("Generated 1024 px icon, complete iconset, and CPaste.icns")
+
+let brandDirectory = root.appendingPathComponent("Resources/Brand", isDirectory: true)
+try FileManager.default.createDirectory(at: brandDirectory, withIntermediateDirectories: true)
+try render(size: 28, toolbar: true, to: brandDirectory.appendingPathComponent("toolbar-icon.png"))
+try render(size: 56, toolbar: true, to: brandDirectory.appendingPathComponent("toolbar-icon@2x.png"))
+print("Generated app icon, complete iconset, CPaste.icns, and 1x/2x toolbar artwork")
