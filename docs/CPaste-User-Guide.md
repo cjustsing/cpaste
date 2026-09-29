@@ -233,7 +233,7 @@ When a type filter is active, a removable filter token appears in the search fie
 
 | Action | Result |
 | --- | --- |
-| Click a card | Select it |
+| Click a card | Select it immediately and keep it in place for double-clicking |
 | Double-click a card | Paste it |
 | Scroll horizontally | Browse the timeline |
 | Hover over a card | Show Copy, Pin, and Delete actions |
@@ -243,6 +243,8 @@ When a type filter is active, a removable filter token appears in the search fie
 The context menu adapts to the selected content type and can include Paste, Paste as Plain Text, Copy, Open Link or Show in Finder, Pin, and Delete.
 
 ## 9. Keyboard Shortcuts
+
+Navigating between cards with the arrow keys scrolls the timeline to the selected card.
 
 | Shortcut | Action |
 | --- | --- |

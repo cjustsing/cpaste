@@ -37,10 +37,9 @@ struct HistoryPanelView: View {
     @State private var selectedID: UUID?
     @State private var isInspectorPresented: Bool
     @State private var presentationState = HistoryPanelPresentationState()
-    @State private var animateNextSelectionScroll = false
+    @State private var shouldScrollSelection = true
     @State private var thumbnailPrefetchTask: Task<Void, Never>?
     @FocusState private var isSearchFocused: Bool
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(
         store: ClipboardStore,
@@ -110,7 +109,7 @@ struct HistoryPanelView: View {
                 .frame(width: 0, height: 0)
         }
         .onAppear {
-            setSelection(items.first?.id, animateScroll: false)
+            setSelection(items.first?.id)
             isSearchFocused = false
         }
         .onChange(of: appState.panelPresentationID) { _ in
@@ -120,7 +119,7 @@ struct HistoryPanelView: View {
             if let selectedID, ids.contains(selectedID) {
                 return
             }
-            setSelection(ids.first, animateScroll: false)
+            setSelection(ids.first)
         }
         .onDisappear {
             thumbnailPrefetchTask?.cancel()
@@ -570,25 +569,25 @@ struct HistoryPanelView: View {
                                 imageURL: store.blobURL(for: item),
                                 ageText: relativeDescription(for: item.lastCopiedAt),
                                 select: {
-                                    select(item, animateScroll: true)
+                                    select(item)
                                 },
                                 paste: {
-                                    select(item, animateScroll: true)
+                                    select(item)
                                     actions.paste(item)
                                 },
                                 pastePlainText: {
-                                    select(item, animateScroll: true)
+                                    select(item)
                                     actions.pastePlainText(item)
                                 },
                                 copy: {
-                                    select(item, animateScroll: true)
+                                    select(item)
                                     actions.copy(item)
                                 },
                                 togglePinned: {
                                     togglePinned(item, in: items)
                                 },
                                 open: {
-                                    select(item, animateScroll: true)
+                                    select(item)
                                     actions.openItem(item)
                                 },
                                 delete: {
@@ -617,16 +616,11 @@ struct HistoryPanelView: View {
                     guard let id else {
                         return
                     }
-                    let shouldAnimate = animateNextSelectionScroll && !reduceMotion
-                    animateNextSelectionScroll = false
-                    if shouldAnimate {
-                        withAnimation(.easeOut(duration: 0.12)) {
-                            scrollProxy.scrollTo(id, anchor: .center)
-                        }
-                    } else {
-                        scrollProxy.scrollTo(id, anchor: .center)
-                    }
                     prefetchThumbnails(around: id, in: items)
+                    guard shouldScrollSelection else {
+                        return
+                    }
+                    scrollProxy.scrollTo(id, anchor: .center)
                 }
             }
         }
@@ -772,7 +766,7 @@ struct HistoryPanelView: View {
         case .focusTimeline:
             isSearchFocused = false
             if selectedID == nil {
-                setSelection(items.first?.id, animateScroll: false)
+                setSelection(items.first?.id)
             }
         case .quickPaste(let position):
             let index = position - 1
@@ -780,7 +774,7 @@ struct HistoryPanelView: View {
                 return false
             }
             let item = items[index]
-            setSelection(item.id, animateScroll: false)
+            setSelection(item.id)
             actions.paste(item)
         case .showHistory:
             selectScope(.history)
@@ -794,8 +788,10 @@ struct HistoryPanelView: View {
         return true
     }
 
-    private func select(_ item: ClipboardItem, animateScroll: Bool) {
-        setSelection(item.id, animateScroll: animateScroll)
+    private func select(_ item: ClipboardItem) {
+        // Keep the card under the pointer between clicks so a double-click
+        // can finish on the same item. Keyboard navigation still scrolls.
+        setSelection(item.id, scrollToSelection: false)
         isSearchFocused = false
     }
 
@@ -803,7 +799,7 @@ struct HistoryPanelView: View {
         if scope == .pinned, item.isPinned {
             selectReplacement(afterRemoving: item.id, from: items)
         } else {
-            select(item, animateScroll: true)
+            select(item)
         }
         actions.togglePinned(item)
     }
@@ -818,7 +814,7 @@ struct HistoryPanelView: View {
             afterRemoving: itemID,
             from: items.map(\.id)
         )
-        setSelection(replacementID, animateScroll: false)
+        setSelection(replacementID)
         isSearchFocused = false
     }
 
@@ -829,13 +825,13 @@ struct HistoryPanelView: View {
             kind: selectedKind,
             pinnedOnly: nextScope == .pinned
         )
-        setSelection(items.first?.id, animateScroll: false)
+        setSelection(items.first?.id)
         isSearchFocused = false
     }
 
     private func moveSelection(by offset: Int, in items: [ClipboardItem]) {
         guard !items.isEmpty else {
-            setSelection(nil, animateScroll: false)
+            setSelection(nil)
             return
         }
 
@@ -846,17 +842,17 @@ struct HistoryPanelView: View {
 
     private func selectIndex(_ index: Int, in items: [ClipboardItem]) {
         guard !items.isEmpty else {
-            setSelection(nil, animateScroll: false)
+            setSelection(nil)
             return
         }
 
         let clampedIndex = min(max(index, 0), items.count - 1)
-        setSelection(items[clampedIndex].id, animateScroll: false)
+        setSelection(items[clampedIndex].id)
         isSearchFocused = false
     }
 
-    private func setSelection(_ id: UUID?, animateScroll: Bool) {
-        animateNextSelectionScroll = selectedID != id && animateScroll
+    private func setSelection(_ id: UUID?, scrollToSelection: Bool = true) {
+        shouldScrollSelection = scrollToSelection
         selectedID = id
     }
 
@@ -885,7 +881,7 @@ struct HistoryPanelView: View {
         searchText = ""
         selectedKind = nil
         scope = .history
-        setSelection(store.filteredItems(search: "").first?.id, animateScroll: false)
+        setSelection(store.filteredItems(search: "").first?.id)
         isSearchFocused = true
     }
 
@@ -897,7 +893,7 @@ struct HistoryPanelView: View {
             kind: selectedKind,
             pinnedOnly: scope == .pinned
         )
-        setSelection(items.first?.id, animateScroll: false)
+        setSelection(items.first?.id)
         isSearchFocused = false
     }
 
