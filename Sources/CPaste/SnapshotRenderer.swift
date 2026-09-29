@@ -74,6 +74,23 @@ enum SnapshotRenderer {
             showSettingsPreview(initialSection: .about)
         case "08-settings-privacy":
             showSettingsPreview(initialSection: .privacy)
+        case "09-large-text":
+            let store = makeDemoStore(name: "preview-large-text")
+            let text = "Large text preview\n" + String(repeating: "长文性能测试 abcdefg 1234567890。\n", count: 200_000) + "CPasteTailNeedle"
+            store.insertCaptured(CapturedClipboardContent(
+                kind: .text,
+                title: "8 MB text fixture",
+                subtitle: ClipboardText.summary(for: text),
+                text: text,
+                contentHash: ContentHasher.hash(string: text),
+                sourceAppName: "Performance Fixture"
+            ))
+            showPanelPreview(
+                size: NSSize(width: 1_180, height: 583),
+                store: store,
+                appState: makeReadyState(),
+                inspectorPresented: true
+            )
         default:
             throw SnapshotError.unknownScene(rawName)
         }
@@ -281,6 +298,7 @@ enum SnapshotRenderer {
         previewWindow = window
         window.orderFrontRegardless()
         NSApplication.shared.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
         hostingView.layoutSubtreeIfNeeded()
     }
 
@@ -332,12 +350,14 @@ enum SnapshotRenderer {
         let hostingView = NSHostingView(rootView: view)
         hostingView.frame = NSRect(origin: .zero, size: size)
 
-        let window = NSWindow(
+        let window = SnapshotWindow(
             contentRect: NSRect(origin: .zero, size: size),
             styleMask: [.borderless],
             backing: .buffered,
             defer: false
         )
+        // Swift owns the window through capture/preview teardown.
+        window.isReleasedWhenClosed = false
         window.isOpaque = false
         window.backgroundColor = .clear
         window.hasShadow = true
@@ -472,4 +492,8 @@ private enum SnapshotError: Error {
     case unknownScene(String)
     case windowNotFound
     case pngEncodingFailed
+}
+
+private final class SnapshotWindow: NSWindow {
+    override var canBecomeKey: Bool { true }
 }

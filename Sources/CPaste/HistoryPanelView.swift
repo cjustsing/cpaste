@@ -105,12 +105,16 @@ struct HistoryPanelView: View {
         }
         .foregroundStyle(CPasteTheme.textPrimary)
         .background {
-            HistoryKeyboardMonitor(isSearchFocused: isSearchFocused, handle: handleKeyboardCommand)
+            HistoryKeyboardMonitor(
+                isSearchFocused: isSearchFocused,
+                isSearchEmpty: searchText.isEmpty,
+                handle: handleKeyboardCommand
+            )
                 .frame(width: 0, height: 0)
         }
         .onAppear {
             setSelection(items.first?.id)
-            isSearchFocused = false
+            isSearchFocused = true
         }
         .onChange(of: appState.panelPresentationID) { _ in
             prepareForPresentation()
@@ -369,7 +373,7 @@ struct HistoryPanelView: View {
                 .fixedSize()
             }
 
-            TextField(CPasteL10n.text("搜索复制内容", "Search copied content"), text: $searchText)
+            TextField(CPasteL10n.text("直接输入以搜索", "Type to search"), text: $searchText)
                 .textFieldStyle(.plain)
                 .font(.system(size: 13))
                 .focused($isSearchFocused)
@@ -792,7 +796,7 @@ struct HistoryPanelView: View {
         // Keep the card under the pointer between clicks so a double-click
         // can finish on the same item. Keyboard navigation still scrolls.
         setSelection(item.id, scrollToSelection: false)
-        isSearchFocused = false
+        isSearchFocused = true
     }
 
     private func togglePinned(_ item: ClipboardItem, in items: [ClipboardItem]) {
@@ -815,7 +819,7 @@ struct HistoryPanelView: View {
             from: items.map(\.id)
         )
         setSelection(replacementID)
-        isSearchFocused = false
+        isSearchFocused = true
     }
 
     private func selectScope(_ nextScope: HistoryScope) {
@@ -826,7 +830,7 @@ struct HistoryPanelView: View {
             pinnedOnly: nextScope == .pinned
         )
         setSelection(items.first?.id)
-        isSearchFocused = false
+        isSearchFocused = true
     }
 
     private func moveSelection(by offset: Int, in items: [ClipboardItem]) {
@@ -835,7 +839,7 @@ struct HistoryPanelView: View {
             return
         }
 
-        isSearchFocused = false
+        isSearchFocused = true
         let currentIndex = selectedID.flatMap { id in items.firstIndex(where: { $0.id == id }) } ?? 0
         selectIndex(currentIndex + offset, in: items)
     }
@@ -848,7 +852,7 @@ struct HistoryPanelView: View {
 
         let clampedIndex = min(max(index, 0), items.count - 1)
         setSelection(items[clampedIndex].id)
-        isSearchFocused = false
+        isSearchFocused = true
     }
 
     private func setSelection(_ id: UUID?, scrollToSelection: Bool = true) {
@@ -894,7 +898,7 @@ struct HistoryPanelView: View {
             pinnedOnly: scope == .pinned
         )
         setSelection(items.first?.id)
-        isSearchFocused = false
+        isSearchFocused = true
     }
 
     private func closePanel() {

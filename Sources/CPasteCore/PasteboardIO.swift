@@ -161,11 +161,13 @@ public enum PasteboardReader {
     }
 
     private static func readURL(from pasteboard: NSPasteboard) -> CapturedClipboardContent? {
-        if let url = NSURL(from: pasteboard) as URL? {
+        if pasteboard.types?.contains(.URL) == true,
+           let url = NSURL(from: pasteboard) as URL? {
             return urlContent(url.absoluteString)
         }
 
         if let string = pasteboard.string(forType: .string),
+           string.utf8.count <= 8_192,
            let url = URL(string: string.trimmingCharacters(in: .whitespacesAndNewlines)),
            url.scheme != nil,
            url.host != nil {
@@ -190,14 +192,12 @@ public enum PasteboardReader {
             return nil
         }
 
-        let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
+        let title = ClipboardText.title(for: string)
+        guard !title.isEmpty else {
             return nil
         }
 
-        let title = trimmed.singleLinePreview(maxLength: 90)
-        let lineCount = string.components(separatedBy: .newlines).count
-        let subtitle = lineCount <= 1 ? "\(string.count) characters" : "\(lineCount) lines"
+        let subtitle = ClipboardText.summary(for: string)
 
         return CapturedClipboardContent(
             kind: .text,
@@ -264,22 +264,6 @@ public enum PasteboardWriter {
 
         pasteboard.clearContents()
         return pasteboard.setString(value, forType: .string)
-    }
-}
-
-private extension String {
-    func singleLinePreview(maxLength: Int) -> String {
-        let flattened = components(separatedBy: .newlines)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
-
-        guard flattened.count > maxLength else {
-            return flattened
-        }
-
-        let end = flattened.index(flattened.startIndex, offsetBy: maxLength)
-        return String(flattened[..<end]) + "..."
     }
 }
 

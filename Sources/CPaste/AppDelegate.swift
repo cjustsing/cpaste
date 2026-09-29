@@ -158,7 +158,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             panel.displayIfNeeded()
             NSApp.activate(ignoringOtherApps: true)
             panel.makeKeyAndOrderFront(nil)
-            panel.makeFirstResponder(nil)
             self.pendingPanelPresentationID = nil
         }
     }

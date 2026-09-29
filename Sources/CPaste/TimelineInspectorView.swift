@@ -78,7 +78,7 @@ struct TimelineInspectorView: View {
                 }
             }
 
-            Text(item.title)
+            Text(ClipboardText.excerpt(item.title, limit: ClipboardText.cardLimit).text)
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(CPasteTheme.textPrimary)
                 .lineLimit(2)
@@ -151,14 +151,22 @@ struct TimelineInspectorView: View {
                 .padding(12)
             }
         case .text, .url:
+            let excerpt = ClipboardText.excerpt(item.text, limit: ClipboardText.inspectorLimit)
             ScrollView {
-                Text(item.text)
-                    .font(.system(size: 11.5, design: item.kind == .url ? .monospaced : .default))
-                    .foregroundStyle(CPasteTheme.textPrimary)
-                    .lineSpacing(2)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
-                    .padding(12)
+                VStack(alignment: .leading, spacing: 10) {
+                    if excerpt.isTruncated {
+                        Text(CPasteL10n.text("长文本仅显示部分预览，复制和粘贴会使用完整内容。", "Showing a preview of this long text. Copy and Paste use the full content."))
+                            .font(.system(size: 11))
+                            .foregroundStyle(CPasteTheme.textSecondary)
+                    }
+                    Text(excerpt.text)
+                        .font(.system(size: 11.5, design: item.kind == .url ? .monospaced : .default))
+                        .foregroundStyle(CPasteTheme.textPrimary)
+                        .lineSpacing(2)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                }
+                .padding(12)
             }
         }
     }

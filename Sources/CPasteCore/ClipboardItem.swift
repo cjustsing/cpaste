@@ -86,7 +86,7 @@ public struct ClipboardItem: Codable, Identifiable, Equatable {
             return true
         }
 
-        let haystack = [
+        let fields = [
             kind.displayName,
             title,
             subtitle,
@@ -95,10 +95,10 @@ public struct ClipboardItem: Codable, Identifiable, Equatable {
             sourceBundleIdentifier ?? "",
             fileURLs.joined(separator: " ")
         ]
-        .joined(separator: " ")
-        .localizedLowercase
 
-        return haystack.contains(trimmed.localizedLowercase)
+        return fields.contains {
+            $0.range(of: trimmed, options: .caseInsensitive, locale: .current) != nil
+        }
     }
 }
 

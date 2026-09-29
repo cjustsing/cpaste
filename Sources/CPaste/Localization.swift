@@ -36,13 +36,20 @@ extension ClipboardItem {
     var localizedSubtitle: String {
         switch kind {
         case .text:
-            let lineCount = text.components(separatedBy: .newlines).count
-            if lineCount > 1 {
-                return CPasteL10n.text("\(lineCount) 行", "\(lineCount) lines")
+            let summary = subtitle.isEmpty ? ClipboardText.summary(for: text) : subtitle
+            let parts = summary.split(separator: " ")
+            if parts.count == 2, let count = Int(parts[0]) {
+                switch parts[1] {
+                case "lines":
+                    return CPasteL10n.text("\(count) 行", "\(count) lines")
+                case "characters":
+                    return CPasteL10n.text("\(count) 个字符", count == 1 ? "1 character" : "\(count) characters")
+                case "bytes":
+                    return ByteCountFormatter.string(fromByteCount: Int64(count), countStyle: .file)
+                default: break
+                }
             }
-            let characterCount = text.count
-            let english = characterCount == 1 ? "1 character" : "\(characterCount) characters"
-            return CPasteL10n.text("\(characterCount) 个字符", english)
+            return summary
         case .url:
             return CPasteL10n.text("链接", "URL")
         case .file:

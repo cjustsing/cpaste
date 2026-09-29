@@ -24,10 +24,11 @@ enum HistoryKeyboardCommand: Equatable {
 
 struct HistoryKeyboardMonitor: NSViewRepresentable {
     var isSearchFocused: Bool
+    var isSearchEmpty: Bool
     var handle: (HistoryKeyboardCommand) -> Bool
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(isSearchFocused: isSearchFocused, handle: handle)
+        Coordinator(isSearchFocused: isSearchFocused, isSearchEmpty: isSearchEmpty, handle: handle)
     }
 
     func makeNSView(context: Context) -> NSView {
@@ -40,6 +41,7 @@ struct HistoryKeyboardMonitor: NSViewRepresentable {
     func updateNSView(_ nsView: NSView, context: Context) {
         context.coordinator.hostView = nsView
         context.coordinator.isSearchFocused = isSearchFocused
+        context.coordinator.isSearchEmpty = isSearchEmpty
         context.coordinator.handle = handle
     }
 
@@ -50,11 +52,13 @@ struct HistoryKeyboardMonitor: NSViewRepresentable {
     final class Coordinator {
         weak var hostView: NSView?
         var isSearchFocused: Bool
+        var isSearchEmpty: Bool
         var handle: (HistoryKeyboardCommand) -> Bool
         private var monitor: Any?
 
-        init(isSearchFocused: Bool, handle: @escaping (HistoryKeyboardCommand) -> Bool) {
+        init(isSearchFocused: Bool, isSearchEmpty: Bool, handle: @escaping (HistoryKeyboardCommand) -> Bool) {
             self.isSearchFocused = isSearchFocused
+            self.isSearchEmpty = isSearchEmpty
             self.handle = handle
         }
 
@@ -67,6 +71,8 @@ struct HistoryKeyboardMonitor: NSViewRepresentable {
                 guard let self,
                       let window = self.hostView?.window,
                       event.window === window,
+                      window.attachedSheet == nil,
+                      (window.firstResponder as? NSTextView)?.hasMarkedText() != true,
                       let command = self.command(for: event),
                       self.handle(command)
                 else {
@@ -87,14 +93,16 @@ struct HistoryKeyboardMonitor: NSViewRepresentable {
             Self.command(
                 forKeyCode: event.keyCode,
                 modifierFlags: event.modifierFlags,
-                isSearchFocused: isSearchFocused
+                isSearchFocused: isSearchFocused,
+                isSearchEmpty: isSearchEmpty
             )
         }
 
         static func command(
             forKeyCode keyCode: UInt16,
             modifierFlags: NSEvent.ModifierFlags,
-            isSearchFocused: Bool
+            isSearchFocused: Bool,
+            isSearchEmpty: Bool = false
         ) -> HistoryKeyboardCommand? {
             let flags = modifierFlags.intersection(.deviceIndependentFlagsMask)
             let hasCommand = flags.contains(.command)
@@ -121,12 +129,16 @@ struct HistoryKeyboardMonitor: NSViewRepresentable {
                 switch keyCode {
                 case 3:
                     return .focusSearch
-                case 8 where !isSearchFocused:
+                case 8 where !isSearchFocused || isSearchEmpty:
                     return .copy
                 case 43:
                     return .showSettings
                 case 17:
                     return .toggleCapture
+                case 35 where hasShift:
+                    return .togglePinned
+                case 34 where !hasShift:
+                    return .toggleInspector
                 case 126:
                     return .first
                 case 125:
@@ -147,8 +159,10 @@ struct HistoryKeyboardMonitor: NSViewRepresentable {
                 return hasShift ? .pastePlainText : .paste
             case 48:
                 return isSearchFocused ? .focusTimeline : .focusSearch
+            case 126 where isSearchFocused:
+                return .previous
             case 125 where isSearchFocused:
-                return .focusTimeline
+                return .next
             case 49 where !isSearchFocused:
                 return .toggleInspector
             case 35 where !isSearchFocused:
@@ -156,9 +170,9 @@ struct HistoryKeyboardMonitor: NSViewRepresentable {
             case 51 where !isSearchFocused,
                  117 where !isSearchFocused:
                 return .delete
-            case 123 where !isSearchFocused:
+            case 123 where !isSearchFocused || isSearchEmpty:
                 return .previous
-            case 124 where !isSearchFocused:
+            case 124 where !isSearchFocused || isSearchEmpty:
                 return .next
             case 126 where !isSearchFocused:
                 return .previous

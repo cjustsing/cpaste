@@ -196,13 +196,13 @@ Close CPaste by:
 - Clicking the close button in the upper-right corner.
 - Switching to another app.
 
-Each time the panel opens, search is cleared, the timeline returns to the leading edge, and keyboard selection starts on a card. The History/Pinned scope and content-type filter remain selected.
+Each time the panel opens, search is cleared, the timeline returns to the leading edge, and the search field receives focus so you can type immediately. The History/Pinned scope and content-type filter remain selected.
 
 ## 7. Search, Scope, and Filtering
 
 ### 7.1 Instant search
 
-Click the search field or press `Command-F`. Search covers:
+Open the panel and start typing, without clicking the search field first. Search covers:
 
 - Item titles and complete text.
 - File names and paths.
@@ -260,14 +260,14 @@ Navigating between cards with the arrow keys scrolls the timeline to the selecte
 | `Shift-Return` | Paste as plain text; images show a status message instead |
 | `Command-1` ... `Command-9` | Paste visible item 1 ... 9 |
 | `Command-C` | Copy the selected item only |
-| `P` | Pin or unpin the selected item |
-| `Space` | Expand or collapse the inspector |
+| `Shift-Command-P` | Pin or unpin the selected item |
+| `Command-I` | Expand or collapse the inspector |
 | `Delete` | Delete the selected item |
 | `Command-T` | Pause or resume capture |
 | `Command-,` | Open Settings |
 | `Escape` | Clear search or close the panel |
 
-While editing search text, Left and Right move the text cursor. Press `Tab` or `Down` to enter the timeline, where the arrow keys select cards.
+While editing search text, Left and Right move the text cursor. Up and Down select cards while keeping search focused. When search is empty, Left and Right also select cards. After explicitly switching to the timeline with `Tab`, `P`, `Space`, and `Delete` remain available for pinning, showing details, and deleting. During normal text entry, letters and spaces go into search.
 
 ## 10. Copy, Paste, and Open
 
@@ -296,7 +296,7 @@ When you paste an item:
 
 Pin or unpin an item by:
 
-- Selecting it and pressing `P`.
+- Selecting it and pressing `Shift-Command-P`.
 - Clicking the pin button shown on hover.
 - Clicking the pin button in the inspector.
 - Choosing Pin or Unpin from the context menu.
@@ -354,7 +354,7 @@ Left-click the menu bar icon to show or hide the timeline. Right-click it to ope
 
 ### 14.1 Text
 
-CPaste stores the complete string. Cards preview multiline content, and text in the inspector can be selected.
+CPaste stores the complete string. Long entries use bounded previews in cards and the inspector to keep the interface responsive. The inspector indicates when part of the preview is omitted. Full-text search, Copy, Paste, and drag out still use the entire original content.
 
 ### 14.2 Links
 

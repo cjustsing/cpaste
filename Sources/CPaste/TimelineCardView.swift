@@ -193,7 +193,7 @@ struct TimelineCardView: View, Equatable {
     }
 
     private var textPreview: some View {
-        Text(item.text.isEmpty ? item.title : item.text)
+        Text(ClipboardText.excerpt(item.text.isEmpty ? item.title : item.text, limit: ClipboardText.cardLimit).text)
             .font(.system(size: 12.5))
             .foregroundStyle(CPasteTheme.textPrimary)
             .lineSpacing(3)
@@ -215,7 +215,7 @@ struct TimelineCardView: View, Equatable {
                     .lineLimit(1)
             }
 
-            Text(item.text)
+            Text(ClipboardText.excerpt(item.text, limit: ClipboardText.cardLimit).text)
                 .font(.system(size: 11.5, design: .monospaced))
                 .foregroundStyle(CPasteTheme.textSecondary)
                 .lineSpacing(2)
@@ -389,7 +389,8 @@ struct TimelineCardView: View, Equatable {
     }
 
     private var urlHost: String {
-        URL(string: item.text)?.host ?? CPasteL10n.text("链接", "Link")
+        URL(string: ClipboardText.excerpt(item.text, limit: ClipboardText.cardLimit).text)?.host
+            ?? CPasteL10n.text("链接", "Link")
     }
 
     private func fileName(for value: String) -> String {

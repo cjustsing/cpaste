@@ -73,6 +73,12 @@ mkdir -p docs/screenshots/timeline-refactor
 .build/arm64-apple-macosx/release/CPaste --snapshot-dir docs/screenshots/timeline-refactor
 ```
 
+Open an isolated 8 MB text fixture to check search focus and long-text preview responsiveness:
+
+```sh
+.build/arm64-apple-macosx/release/CPaste --snapshot-preview 09-large-text
+```
+
 Liquid Glass screenshots require macOS 26 or later. Screen Recording permission must be available to the process that runs the snapshot command because native glass is captured from an onscreen WindowServer composition.
 
 For local UI smoke checks without touching your real history:
