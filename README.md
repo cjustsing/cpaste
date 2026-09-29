@@ -43,7 +43,7 @@ The production 1024 px icon, complete iconset, and packaged `.icns` are stored u
 Resources/AppIcon
 ```
 
-The approved artwork and design record are in [docs/design/app-icon](docs/design/app-icon/README.md). Regenerate the production assets directly from that original with `swift scripts/generate_app_icon.swift`; the script removes the presentation background with an antialiased mask and generates all icon sizes without repainting the artwork.
+The approved solid double-card artwork and design record are in [docs/design/app-icon](docs/design/app-icon/README.md). Regenerate the production assets directly from that original with `swift scripts/generate_app_icon.swift`; the script cleans the outer edge with an antialiased mask and generates all icon sizes without repainting the artwork.
 
 Verify the architecture:
 

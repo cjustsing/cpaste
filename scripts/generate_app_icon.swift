@@ -4,17 +4,32 @@ import ImageIO
 import UniformTypeIdentifiers
 
 // Package the approved original without generative edits or color retouching.
-// The crop and circular-corner mask follow its outer tile, leaving card details intact.
+// Inset the crop and mask into the opaque tile to exclude generated edge speckles.
 let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
 let directory = root.appendingPathComponent("Resources/AppIcon", isDirectory: true)
-let sourceURL = root.appendingPathComponent("docs/design/app-icon/liquid-glass-v2.png")
+let sourceURL = root.appendingPathComponent("docs/design/app-icon/solid-cards-v1.png")
 guard let source = CGImageSourceCreateWithURL(sourceURL as CFURL, nil),
       let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
       image.width == 1_254, image.height == 1_254,
-      let tile = image.cropping(to: CGRect(x: 166, y: 146, width: 922, height: 938))
+      let tile = image.cropping(to: CGRect(x: 122, y: 124, width: 1_010, height: 1_010))
 else {
     fatalError("Expected the approved 1254 x 1254 original icon artwork")
 }
+
+// The generated solid artwork has alpha 252–254 throughout its interior.
+// Preserve its straight RGB bytes while making the tile fully opaque; macOS
+// otherwise treats it as a translucent glyph and adds a separate backplate.
+let opaqueTile = NSBitmapImageRep(cgImage: tile)
+guard opaqueTile.bitsPerSample == 8, opaqueTile.samplesPerPixel == 4,
+      opaqueTile.bitmapFormat == .alphaNonpremultiplied,
+      let pixels = opaqueTile.bitmapData
+else { fatalError("Expected straight RGBA icon pixels") }
+for y in 0..<opaqueTile.pixelsHigh {
+    for x in 0..<opaqueTile.pixelsWide {
+        pixels[y * opaqueTile.bytesPerRow + x * 4 + 3] = 255
+    }
+}
+guard let solidTile = opaqueTile.cgImage else { fatalError("Could not normalize icon alpha") }
 
 let iconset = directory.appendingPathComponent("AppIcon.iconset", isDirectory: true)
 try FileManager.default.createDirectory(at: iconset, withIntermediateDirectories: true)
@@ -29,15 +44,15 @@ func render(size: Int, to url: URL) throws {
     context.setAllowsAntialiasing(true)
     context.setShouldAntialias(true)
     context.interpolationQuality = .high
-    // Fit the approved tile at the normal macOS icon inset without distorting it.
-    let scale = 824.0 / 938.0
-    let width = 922.0 * scale
-    let bounds = CGRect(x: (1_024 - width) / 2, y: 100, width: width, height: 824)
+    // Fit the opaque square tile at the normal macOS icon inset.
+    // Crop only the background so the cards retain their original proportions.
+    let scale = 824.0 / 1_010.0
+    let bounds = CGRect(x: 100, y: 100, width: 824, height: 824)
     context.addPath(CGPath(
-        roundedRect: bounds, cornerWidth: 228 * scale, cornerHeight: 228 * scale, transform: nil
+        roundedRect: bounds, cornerWidth: 252 * scale, cornerHeight: 252 * scale, transform: nil
     ))
     context.clip()
-    context.draw(tile, in: bounds)
+    context.draw(solidTile, in: bounds)
     guard let output = context.makeImage(),
           let destination = CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil)
     else { fatalError("Could not encode icon") }
