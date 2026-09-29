@@ -7,16 +7,16 @@ import UniformTypeIdentifiers
 // Inset the crop and mask into the opaque tile to exclude generated edge speckles.
 let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
 let directory = root.appendingPathComponent("Resources/AppIcon", isDirectory: true)
-let sourceURL = root.appendingPathComponent("docs/design/app-icon/solid-cards-v1.png")
+let sourceURL = root.appendingPathComponent("docs/design/app-icon/contrast-cards-v2.png")
 guard let source = CGImageSourceCreateWithURL(sourceURL as CFURL, nil),
       let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
       image.width == 1_254, image.height == 1_254,
-      let tile = image.cropping(to: CGRect(x: 122, y: 124, width: 1_010, height: 1_010))
+      let tile = image.cropping(to: CGRect(x: 126, y: 126, width: 1_002, height: 1_002))
 else {
     fatalError("Expected the approved 1254 x 1254 original icon artwork")
 }
 
-// The generated solid artwork has alpha 252–254 throughout its interior.
+// Generated solid artwork can contain near-opaque alpha throughout its interior.
 // Preserve its straight RGB bytes while making the tile fully opaque; macOS
 // otherwise treats it as a translucent glyph and adds a separate backplate.
 let opaqueTile = NSBitmapImageRep(cgImage: tile)
@@ -46,7 +46,7 @@ func render(size: Int, to url: URL) throws {
     context.interpolationQuality = .high
     // Fit the opaque square tile at the normal macOS icon inset.
     // Crop only the background so the cards retain their original proportions.
-    let scale = 824.0 / 1_010.0
+    let scale = 824.0 / 1_002.0
     let bounds = CGRect(x: 100, y: 100, width: 824, height: 824)
     context.addPath(CGPath(
         roundedRect: bounds, cornerWidth: 252 * scale, cornerHeight: 252 * scale, transform: nil
