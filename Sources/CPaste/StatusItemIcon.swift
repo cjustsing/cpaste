@@ -18,30 +18,25 @@ enum StatusItemIcon {
             )
             context.setAllowsAntialiasing(true)
             context.setShouldAntialias(true)
+            context.translateBy(x: designSize / 2, y: designSize / 2)
+            context.rotate(by: .pi / 15)
+            context.translateBy(x: -designSize / 2, y: -designSize / 2)
 
             fillCard(
                 in: context,
-                rect: CGRect(x: 1.5, y: 7.2, width: 10.2, height: 7.1),
-                opacity: 0.48
+                rect: CGRect(x: 2.2, y: 5.8, width: 8.6, height: 10.2),
+                opacity: 0.5
             )
-            fillCard(
-                in: context,
-                rect: CGRect(x: 3.4, y: 5.4, width: 10.7, height: 7.7),
-                opacity: 0.72
+            let front = CGPath(
+                roundedRect: CGRect(x: 5.8, y: 2.2, width: 8.6, height: 10.2),
+                cornerWidth: 1.8, cornerHeight: 1.8, transform: nil
             )
-            fillCard(
-                in: context,
-                rect: CGRect(x: 5.3, y: 3.5, width: 11.2, height: 8.2),
-                opacity: 1
-            )
-
-            context.setBlendMode(.clear)
-            context.setLineWidth(1.3)
-            context.setLineCap(.round)
-            context.move(to: CGPoint(x: 7.5, y: 8.5))
-            context.addLine(to: CGPoint(x: 14.3, y: 8.5))
-            context.move(to: CGPoint(x: 7.5, y: 6.6))
-            context.addLine(to: CGPoint(x: 12.8, y: 6.6))
+            context.setFillColor(NSColor.black.withAlphaComponent(0.08).cgColor)
+            context.addPath(front)
+            context.fillPath()
+            context.setStrokeColor(NSColor.black.cgColor)
+            context.setLineWidth(1.2)
+            context.addPath(front)
             context.strokePath()
 
             return true

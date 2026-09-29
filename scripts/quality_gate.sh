@@ -26,6 +26,10 @@ if [[ ! -s "build/CPaste.app/Contents/Resources/$ICON_FILE" ]]; then
   echo "Missing packaged app icon: $ICON_FILE" >&2
   exit 1
 fi
+if ! cmp -s "Resources/AppIcon/CPaste.icns" "build/CPaste.app/Contents/Resources/$ICON_FILE"; then
+  echo "Packaged app icon differs from source" >&2
+  exit 1
+fi
 for legal_file in LICENSE NOTICE; do
   if ! cmp -s "$legal_file" "build/CPaste.app/Contents/Resources/$legal_file"; then
     echo "Packaged $legal_file differs from source" >&2
