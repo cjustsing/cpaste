@@ -196,7 +196,7 @@ Close CPaste by:
 - Clicking the close button in the upper-right corner.
 - Switching to another app.
 
-Each time the panel opens, search is cleared, the timeline returns to the leading edge, and the search field receives focus so you can type immediately. The History/Pinned scope and content-type filter remain selected.
+Each time the panel opens, it returns to History, search is cleared, the timeline returns to the leading edge, and the search field receives focus so you can type immediately. The content-type filter remains selected.
 
 ## 7. Search, Scope, and Filtering
 

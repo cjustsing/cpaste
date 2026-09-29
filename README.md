@@ -81,6 +81,8 @@ Open an isolated 8 MB text fixture to check search focus and long-text preview r
 
 Liquid Glass screenshots require macOS 26 or later. Screen Recording permission must be available to the process that runs the snapshot command because native glass is captured from an onscreen WindowServer composition.
 
+For corner and shadow checks, set `CPASTE_SNAPSHOT_SHADOWS=1` to include the native window shadow at its original capture size. `CPASTE_SNAPSHOT_SCALE=1` or `2` places the snapshot window on a connected display with that backing scale (otherwise it uses the default display). Use `CPASTE_SNAPSHOT_THEME=standard` to compare the standard theme. In an interactive preview, closing the panel simulates a new presentation while keeping the fixture window visible, so reopening state can be checked without the global hotkey.
+
 For local UI smoke checks without touching your real history:
 
 ```sh

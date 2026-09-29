@@ -7,6 +7,10 @@ import SwiftUI
 enum SnapshotRenderer {
     private static var previewWindow: NSWindow?
 
+    private static var themeStyle: AppThemeStyle {
+        ProcessInfo.processInfo.environment["CPASTE_SNAPSHOT_THEME"] == "standard" ? .standard : .liquidGlass
+    }
+
     nonisolated static func snapshotDirectoryArgument() -> URL? {
         let arguments = ProcessInfo.processInfo.arguments
         guard let index = arguments.firstIndex(of: "--snapshot-dir"),
@@ -58,7 +62,7 @@ enum SnapshotRenderer {
                 inspectorPresented: false
             )
         case "04-empty-timeline":
-            let state = AppState(themeStyle: .liquidGlass)
+            let state = AppState(themeStyle: themeStyle)
             state.statusMessage = CPasteL10n.text("就绪", "Ready")
             showPanelPreview(
                 size: NSSize(width: 680, height: 420),
@@ -130,7 +134,7 @@ enum SnapshotRenderer {
             to: directory
         )
 
-        let emptyState = AppState(themeStyle: .liquidGlass)
+        let emptyState = AppState(themeStyle: themeStyle)
         emptyState.statusMessage = CPasteL10n.text("就绪", "Ready")
         try await renderPanel(
             name: "04-empty-timeline.png",
@@ -241,7 +245,8 @@ enum SnapshotRenderer {
             togglePinned: { item in store.togglePinned(item.id) },
             delete: { item in store.delete(item.id) },
             clearUnpinned: { store.clearUnpinned() },
-            close: {},
+            // Keep the fixture visible while exercising the next-open lifecycle.
+            close: { appState.panelPresentationID = UUID() },
             openAccessibility: {},
             hasAccessibilityPermission: { false },
             toggleCapture: {
@@ -325,10 +330,13 @@ enum SnapshotRenderer {
 
         let scale = window.backingScaleFactor
         let configuration = SCScreenshotConfiguration()
-        configuration.width = Int(size.width * scale)
-        configuration.height = Int(size.height * scale)
+        let includeShadows = ProcessInfo.processInfo.environment["CPASTE_SNAPSHOT_SHADOWS"] == "1"
+        if !includeShadows {
+            configuration.width = Int(size.width * scale)
+            configuration.height = Int(size.height * scale)
+        }
         configuration.showsCursor = false
-        configuration.ignoreShadows = true
+        configuration.ignoreShadows = !includeShadows
         configuration.displayIntent = .local
         configuration.dynamicRange = .sdr
 
@@ -367,11 +375,19 @@ enum SnapshotRenderer {
         window.contentView = hostingView
         window.setFrame(NSRect(origin: .zero, size: size), display: true)
         window.center()
+        if let rawScale = ProcessInfo.processInfo.environment["CPASTE_SNAPSHOT_SCALE"],
+           let requestedScale = Double(rawScale),
+           let screen = NSScreen.screens.first(where: { $0.backingScaleFactor == requestedScale }) {
+            window.setFrameOrigin(NSPoint(
+                x: screen.visibleFrame.midX - size.width / 2,
+                y: screen.visibleFrame.midY - size.height / 2
+            ))
+        }
         return (window, hostingView)
     }
 
     private static func makeReadyState() -> AppState {
-        let state = AppState(themeStyle: .liquidGlass)
+        let state = AppState(themeStyle: themeStyle)
         state.statusMessage = CPasteL10n.text("已复制", "Copied")
         return state
     }

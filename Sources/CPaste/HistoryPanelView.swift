@@ -92,7 +92,8 @@ struct HistoryPanelView: View {
                     RoundedRectangle(cornerRadius: 24, style: .continuous)
                         .stroke(Color.white.opacity(0.18), lineWidth: 0.8)
                 )
-                .shadow(color: Color.black.opacity(0.36), radius: 28, x: 0, y: 14)
+                // NSPanel supplies the outer shadow. A second SwiftUI shadow
+                // expands its alpha silhouette into a jagged WindowServer outline.
                 .padding(.horizontal, 10)
                 .padding(.top, 8)
                 .padding(.bottom, 10)
@@ -892,10 +893,11 @@ struct HistoryPanelView: View {
     private func prepareForPresentation() {
         presentationState.resetTransientUI()
         searchText = ""
+        scope = .history
         let items = store.filteredItems(
             search: "",
             kind: selectedKind,
-            pinnedOnly: scope == .pinned
+            pinnedOnly: false
         )
         setSelection(items.first?.id)
         isSearchFocused = true
