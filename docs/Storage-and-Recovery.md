@@ -8,6 +8,12 @@ Short text, IDs, content hashes, pin state, source metadata, timestamps, file UR
 
 UI mutations publish the new items and a monotonically increasing revision, then enqueue a copy-on-write snapshot. A serial worker merges pending snapshots and persists body files before publishing the new index atomically. `ClipboardStore.save()` is an explicit synchronous durability barrier; normal quit calls it and remains open if saving fails.
 
+Capture reads an immutable native pasteboard snapshot on the main thread and validates its generation before accepting it. Image validation/conversion, hashing and attachment staging then run off the main thread. Valid PNG representations retain their complete original bytes. A single accepted capture and a latest unread generation bound the capture queue. Once a stable snapshot has been accepted, a later copy does not revoke it; pause, stop and exact self-copy suppression can still cancel work before its main-thread decision.
+
+Staged attachments have independent leases until they are committed or discarded. Garbage collection protects these leases and the complete live in-memory snapshot even if an index save fails. Captures preserve their observed time, so a late worker cannot move an older capture ahead of a newer explicit copy or roll back a newer duplicate's metadata.
+
+Normal quit uses an asynchronous capture drain before the synchronous save barrier. A store save cannot report success while an asynchronous attachment insertion still needs its main-thread decision; callers must drain the monitor to include decoding work as well. Pause or restart does not delete an already accepted failed payload handed to the store for retry.
+
 Legacy arrays load without trimming or changing metadata. Migration retains the original legacy index, creates the separate bodies, and publishes the smaller index only after its dependencies are present. Repeated saves do not repeat the migration or rotate unchanged indexes.
 
 | Path | Purpose |
@@ -30,6 +36,14 @@ Attachment and body cleanup runs after a successful commit and retains files ref
 Backup rotation revalidates old snapshot dependencies, including bodies removed from the next snapshot. Recovery archives use a content-derived name and are verified before reuse, so repeated saves or restarts do not create duplicate copies of the same damaged index.
 
 Back up or move the entire data directory. Older releases do not read separate text bodies; rolling back requires restoring the complete pre-upgrade backup. Clearing unpinned history removes those entries from the current history; retained recovery and backup files may still contain previous entries. To remove all local data, quit CPaste and remove the entire data directory.
+
+## Safe retry
+
+Settings > Privacy exposes **Retry Saving**, **Open Folder**, and, when available, **View Copy**. Retry first drains accepted capture work. The explicit retry transaction rechecks directory protection and current disk history without requiring a successful save first. It can resume writing against the known disk baseline and replay accepted captures whose attachments previously failed to stage.
+
+When history was initially unreadable, newly readable disk records and compatible new in-memory captures can be recovered together without trimming to capacity. Independently changed valid history that differs from a known baseline is treated as a conflict. The external primary and current memory remain unchanged, and a private recovery checkpoint contains full inline text plus attachment dependencies. If the checkpoint cannot be safely saved and verified, the app reports that the records remain in memory and keeps replacement writes blocked.
+
+Every queued persistence report carries its originating operation epoch. A later capture failure or retry supersedes old successful and failed reports, so a delayed completion cannot clear a newer storage problem. Saving and retrying cannot claim success while an accepted failed payload remains unrecovered.
 
 ## Background search
 

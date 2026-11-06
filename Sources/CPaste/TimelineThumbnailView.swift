@@ -8,37 +8,18 @@ actor TimelineThumbnailCache {
     static let cardMaxPixelSize = 1_024
     static let inspectorMaxPixelSize = 1_536
 
-    private let cache = NSCache<NSString, CGImage>()
-    private var inFlight: [String: Task<CGImage?, Never>] = [:]
+    private let pipeline: ImageRequestPipeline
 
     init(totalCostLimit: Int = 128 * 1_024 * 1_024) {
-        cache.totalCostLimit = totalCostLimit
-        cache.countLimit = 256
+        pipeline = ImageRequestPipeline(maximumConcurrentOperations: 2, totalCostLimit: totalCostLimit)
     }
 
     func thumbnail(for url: URL, maxPixelSize: Int) async -> CGImage? {
         let pixelSize = normalizedPixelSize(maxPixelSize)
         let key = cacheKey(for: url, maxPixelSize: pixelSize)
-        let cacheKey = key as NSString
-
-        if let cached = cache.object(forKey: cacheKey) {
-            return cached
-        }
-        if let task = inFlight[key] {
-            return await task.value
-        }
-
-        let task = Task.detached(priority: .userInitiated) {
+        return await pipeline.image(for: key) {
             ImageThumbnailDecoder.thumbnail(at: url, maxPixelSize: pixelSize)
         }
-        inFlight[key] = task
-
-        let image = await task.value
-        inFlight[key] = nil
-        if let image {
-            cache.setObject(image, forKey: cacheKey, cost: image.bytesPerRow * image.height)
-        }
-        return image
     }
 
     func prefetch(urls: [URL], maxPixelSize: Int) async {
@@ -74,6 +55,7 @@ struct TimelineThumbnailView<FailureContent: View>: View {
 
     @State private var thumbnail: CGImage?
     @State private var hasFinishedLoading = false
+    @State private var loadedRequestID: String?
 
     init(
         imageURL: URL,
@@ -89,19 +71,21 @@ struct TimelineThumbnailView<FailureContent: View>: View {
 
     var body: some View {
         Group {
-            if let thumbnail {
+            if loadedRequestID == requestID, let thumbnail {
                 Image(decorative: thumbnail, scale: 1, orientation: .up)
                     .resizable()
                     .aspectRatio(contentMode: contentMode)
-            } else if hasFinishedLoading {
+            } else if loadedRequestID == requestID, hasFinishedLoading {
                 failureContent()
             } else {
                 Color.clear
             }
         }
         .task(id: requestID) {
+            let requestedID = requestID
             thumbnail = nil
             hasFinishedLoading = false
+            loadedRequestID = nil
             let loadedImage = await TimelineThumbnailCache.shared.thumbnail(
                 for: imageURL,
                 maxPixelSize: maxPixelSize
@@ -111,6 +95,7 @@ struct TimelineThumbnailView<FailureContent: View>: View {
             }
             thumbnail = loadedImage
             hasFinishedLoading = true
+            loadedRequestID = requestedID
         }
     }
 

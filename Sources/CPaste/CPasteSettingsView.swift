@@ -296,6 +296,29 @@ struct CPasteSettingsView: View {
     private var privacySettings: some View {
         VStack(spacing: 0) {
             settingsRow(
+                icon: "externaldrive.fill",
+                title: CPasteL10n.text("历史存储", "History Storage"),
+                subtitle: storageStatus
+            ) {
+                HStack(spacing: 8) {
+                    if store.recoveryCopyURL != nil {
+                        Button(CPasteL10n.text("查看副本", "View Copy"), action: actions.openRecoveryCopy)
+                            .controlSize(.small)
+                    }
+                    Button(
+                        appState.isStorageRetrying
+                            ? CPasteL10n.text("检查中…", "Checking…")
+                            : CPasteL10n.text("重试保存", "Retry Saving"),
+                        action: actions.retryStorage
+                    )
+                    .controlSize(.small)
+                    .disabled(appState.isStorageRetrying || (store.storageIssue == nil && !store.hasPendingCaptureFailure))
+                }
+            }
+
+            Divider().padding(.leading, 56)
+
+            settingsRow(
                 icon: "externaldrive.fill.badge.checkmark",
                 title: CPasteL10n.text("仅本地保存", "Stored Locally"),
                 subtitle: CPasteL10n.text("无网络上传；历史文件未加密", "No network upload; history files are not encrypted")
@@ -328,7 +351,8 @@ struct CPasteSettingsView: View {
                 subtitleTruncationMode: .middle,
                 isSubtitleSelectable: true
             ) {
-                EmptyView()
+                Button(CPasteL10n.text("打开目录", "Open Folder"), action: actions.openStorageDirectory)
+                    .controlSize(.small)
             }
 
             Divider().padding(.leading, 56)
@@ -342,11 +366,22 @@ struct CPasteSettingsView: View {
                     isConfirmingClear = true
                 }
                 .controlSize(.small)
-                .disabled(!store.items.contains(where: { !$0.isPinned }))
+                .disabled(!store.hasUnpinnedHistory)
             }
         }
         .padding(.horizontal, 18)
         .padding(.top, 12)
+    }
+
+    private var storageStatus: String {
+        if appState.isStorageRetrying {
+            return CPasteL10n.text("正在检查并保存已捕获的内容", "Checking and saving captured content")
+        }
+        if store.hasPendingCaptureFailure {
+            return CPasteL10n.text("有捕获内容尚未保存，请重试", "Captured content is unsaved; retry saving")
+        }
+        return store.storageIssue?.localizedMessage
+            ?? CPasteL10n.text("保存正常", "Saving normally")
     }
 
     private var shortcutSettings: some View {

@@ -17,6 +17,25 @@ enum CPasteL10n {
     }
 }
 
+extension ClipboardStorageIssue {
+    var localizedMessage: String {
+        switch self {
+        case .recoveredFromBackup:
+            return CPasteL10n.text("历史已从备份恢复", "History recovered from backup")
+        case .damagedHistoryPreserved:
+            return CPasteL10n.text("历史文件异常，原件已保留", "Damaged history preserved for recovery")
+        case .readOnly:
+            return CPasteL10n.text("历史存储不可用，已停止覆盖写入", "Storage unavailable; replacement writes blocked")
+        case .saveFailed:
+            return CPasteL10n.text("有内容尚未保存，请重试保存", "Some content is unsaved; retry saving")
+        case .historyConflict:
+            return CPasteL10n.text("磁盘历史有更新，本地已保留恢复副本", "History changed on disk; local recovery copy saved")
+        case .recoveryCopyFailed:
+            return CPasteL10n.text("恢复副本保存失败，记录仍在内存中", "Recovery copy failed; unsaved records remain in memory")
+        }
+    }
+}
+
 extension ClipboardKind {
     var localizedDisplayName: String {
         switch self {

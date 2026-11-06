@@ -2,6 +2,54 @@ import AppKit
 import CPasteCore
 import Foundation
 
+func runPreparedCaptureChecks() {
+    testPreparedCaptureStagesOffMainAndRequiresMainAdmission()
+    testCancelledPreparationDoesNotRetainFailureOrOrphan()
+    testPreparedLeaseSurvivesOlderSnapshotCollection()
+    testOlderPreparedDuplicateCannotRollbackNewerState()
+    testAcceptedFailedCaptureReplaysAfterAdmissionEnds()
+    testReadOnlyPreparationCancellationRetainsUnknownDependencies()
+    testPendingCaptureWorkClearsOnlyAfterMainAdmission()
+}
+
+func runStorageRetryAdditionalChecks() {
+    testConflictCopyContainsFullTextAndBinaryDependencies()
+    testRecoveryCopyFailureKeepsMemoryAndExternalHistory()
+    testHistoryChangedDuringRetryPublicationIsNotOverwritten()
+}
+
+func runCaptureRemovalChecks() {
+    testExplicitClearRemovesOnlyUnpinnedFailedRaw()
+    testExplicitDeleteRemovesMatchingFailedRaw()
+    testClearBoundaryDiscardsInFlightOldCaptureAndAllowsNewCopy()
+    testDeleteBoundaryDiscardsOldDuplicateAdmission()
+    testAutomaticTrimmingRetainsAcceptedFailedRaw()
+}
+
+let currentOptimizationChecks: [(String, () -> Void)] = [
+    ("--retry-initial-publication-conflict-regression", testInitialRecoveryPublicationConflictKeepsUnadoptedRowsForNextRetry),
+    ("--retry-initial-conflict-repeat-regression", testInitialRecoveryConflictRemainsProtectedUntilOriginalDiskReturns),
+    ("--gc-published-history-regression", testCancelledStagePreservesPublishedForeignDependencies),
+    ("--gc-unpublished-payload-regression", testCollectionRetainsUnpublishedForeignPayloads),
+    ("--capture-removal-checks", runCaptureRemovalChecks),
+    ("--retry-publication-retry-regression", testFailedInitialRecoveryKeepsDiskRowsThroughRetryAndNormalMutation),
+    ("--visual-resource-checks", runVisualResourceCoreChecks),
+    ("--prepared-capture-checks", runPreparedCaptureChecks),
+    ("--retry-extra-checks", runStorageRetryAdditionalChecks),
+    ("--capture-concurrency-checks", runCaptureConcurrencyChecks),
+    ("--retry-readonly-regression", testReadOnlyStorageCanRetryAfterRepair),
+    ("--retry-initial-history-regression", testInitiallyUnreadableHistoryMergesCapturedItemsWithoutTrimming),
+    ("--retry-conflict-regression", testExternalHistoryConflictKeepsBothVersions),
+    ("--retry-report-regression", testOldSuccessCannotClearANewerCaptureFailure),
+    ("--capture-png-regression", testCapturedPNGPreservesOriginalBytes),
+    ("--capture-thread-regression", testMonitoredImageBlobStagesOffMainThread)
+]
+for (argument, run) in currentOptimizationChecks where CommandLine.arguments.contains(argument) {
+    run()
+    print("Optimization check passed: \(argument)")
+    exit(0)
+}
+
 if CommandLine.arguments.contains("--pause-regression") {
     testPauseResumeDoesNotCaptureChangesBetweenTimerTicks()
     print("Pause boundary checks passed")
@@ -972,6 +1020,7 @@ testThemeAvailabilityAndDefaultsFollowMacOSVersion()
 testLanguageResolutionAndSystemPreference()
 testThemeResolutionPreservesValidChoicesAndRejectsUnsupportedGlass()
 testPresentationStateClosesOnlyTheTopmostInterface()
+for (_, run) in currentOptimizationChecks { run() }
 runStorageRecoveryChecks()
 runBackgroundSearchChecks()
 

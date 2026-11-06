@@ -244,6 +244,8 @@ When a type filter is active, a removable filter token appears in the search fie
 
 The context menu adapts to the selected content type and can include Paste, Paste as Plain Text, Copy, Open Link or Show in Finder, Pin, and Delete.
 
+Cards containing multiple files drag every file in the original order. An unavailable file causes the whole drag to fail validation instead of silently exporting only part of the selection.
+
 ## 9. Keyboard Shortcuts
 
 Navigating between cards with the arrow keys scrolls the timeline to the selected card.
@@ -325,6 +327,8 @@ Clear unpinned history from Settings -> Privacy -> Clear History, or from the me
 
 ### 12.2 Privacy
 
+History Storage shows saving status. After repairing disk space or permissions, choose **Retry Saving** to save accepted content that is still pending. **Open Folder** locates local data. If another program has updated known disk history, CPaste preserves a complete local recovery copy and provides **View Copy**, keeping the external history intact. If that copy cannot be saved, the status explicitly says the records remain in memory.
+
 The Privacy page shows that:
 
 - All data stays on this Mac.
@@ -373,7 +377,7 @@ CPaste stores one or more file URLs. Cards show file names, the inspector shows 
 
 ### 14.4 Images
 
-Images are stored as local PNG blobs and shown proportionally in the timeline and inspector.
+Images are stored as local PNG blobs and shown proportionally in the timeline and inspector. Valid PNG data retains its original bytes. Validation, conversion, hashing and attachment staging run in the background; thumbnail decoding has a concurrency budget.
 
 ### 14.5 Source apps
 

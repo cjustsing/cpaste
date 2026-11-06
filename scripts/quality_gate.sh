@@ -6,7 +6,11 @@ cd "$ROOT_DIR"
 
 swift run CPasteCoreChecks
 ./scripts/check_paste_delivery.sh
+./scripts/check_capture_shutdown.sh
 ./scripts/check_history_capacity.sh
+./scripts/check_visual_resources.sh drag
+./scripts/check_visual_resources.sh thumbnail
+./scripts/check_visual_resources.sh icon
 ./scripts/check_app_input_full.sh
 swift build -c release --arch arm64
 ./scripts/build_app.sh >/tmp/cpaste-build.out

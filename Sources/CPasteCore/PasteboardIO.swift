@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import ImageIO
 import UniformTypeIdentifiers
 
 public enum PasteboardReader {
@@ -10,75 +11,129 @@ public enum PasteboardReader {
         from pasteboard: NSPasteboard = .general,
         sourceBundleIdentifier: String? = nil
     ) -> CapturedClipboardContent? {
-        guard !ClipboardPrivacy.shouldIgnore(pasteboard) else {
+        dispatchPrecondition(condition: .onQueue(.main))
+        let generation = pasteboard.changeCount
+        var excludedImages = Set<String>()
+        while excludedImages.count < 32 {
+            guard pasteboard.changeCount == generation,
+                  case let .snapshot(snapshot) = snapshotResult(
+                    from: pasteboard,
+                    sourceBundleIdentifier: sourceBundleIdentifier,
+                    excludingImageTypes: excludedImages
+                  ),
+                  pasteboard.changeCount == generation
+            else { return nil }
+            if let content = decode(snapshot) { return content }
+            guard let type = snapshot.imageType, excludedImages.insert(type).inserted else { return nil }
+        }
+        return nil
+    }
+
+    /// Pasteboard IPC stays on the calling (normally main) thread. This only
+    /// copies representations; it does not decode, transcode, hash or read files.
+    public static func snapshot(
+        from pasteboard: NSPasteboard = .general,
+        sourceBundleIdentifier: String? = nil
+    ) -> ClipboardSnapshot? {
+        dispatchPrecondition(condition: .onQueue(.main))
+        let generation = pasteboard.changeCount
+        guard case let .snapshot(value) = snapshotResult(from: pasteboard, sourceBundleIdentifier: sourceBundleIdentifier),
+              pasteboard.changeCount == generation
+        else { return nil }
+        return value
+    }
+
+    static func snapshotResult(
+        from pasteboard: NSPasteboard,
+        sourceBundleIdentifier: String?,
+        excludingImageTypes: Set<String> = []
+    ) -> ClipboardSnapshotResult {
+        dispatchPrecondition(condition: .onQueue(.main))
+        guard !ClipboardPrivacy.shouldIgnore(pasteboard) else { return .ignored }
+        let declared = pasteboard.pasteboardItems?.flatMap(\.types) ?? pasteboard.types ?? []
+        var unique = Set<String>()
+        let types = declared.filter { unique.insert($0.rawValue).inserted }
+        let hasPDF = types.contains { $0 == .pdf || UTType($0.rawValue)?.conforms(to: .pdf) == true }
+        if hasPDF, let paths = readFilePaths(from: pasteboard) {
+            return .snapshot(ClipboardSnapshot(payload: .files(paths, sourceBundleIdentifier: nil)))
+        }
+        let supportedImageTypes = Set(NSImage.imageTypes)
+        let imageTypes = types.filter { type in
+            guard !excludingImageTypes.contains(type.rawValue),
+                  UTType(type.rawValue)?.conforms(to: .pdf) != true
+            else { return false }
+            return UTType(type.rawValue)?.conforms(to: .image) == true || supportedImageTypes.contains(type.rawValue)
+        }
+        let orderedImages = imageTypes.filter { $0 == .png } + imageTypes.filter { $0 != .png }
+        var unavailable = false
+        func imageSnapshot(includeIcons: Bool) -> ClipboardSnapshot? {
+            for type in orderedImages where includeIcons || type != fileIconType {
+                if let data = pasteboard.data(forType: type), !data.isEmpty {
+                    return ClipboardSnapshot(payload: .image(data, type: type.rawValue))
+                }
+                unavailable = true
+            }
             return nil
         }
-
-        if hasPDFRepresentation(in: pasteboard),
-           let fileContent = readFiles(from: pasteboard) {
-            return fileContent
+        if let image = imageSnapshot(includeIcons: false) { return .snapshot(image) }
+        if let paths = readFilePaths(from: pasteboard) {
+            return .snapshot(ClipboardSnapshot(payload: .files(paths, sourceBundleIdentifier: sourceBundleIdentifier)))
         }
-
-        if hasDirectImageRepresentation(in: pasteboard),
-           let imageContent = readImage(from: pasteboard) {
-            return imageContent
-        }
-
-        if let fileContent = readFiles(from: pasteboard) {
-            if let imageContent = readSingleImageFile(
-                from: fileContent,
-                sourceBundleIdentifier: sourceBundleIdentifier
-            ) {
-                return imageContent
+        if hasPDF {
+            if let data = pasteboard.data(forType: .pdf), !data.isEmpty {
+                return .snapshot(ClipboardSnapshot(payload: .pdf(data)))
             }
-            return fileContent
+            unavailable = true
         }
-
-        if let pdfContent = readPDF(from: pasteboard) {
-            return pdfContent
-        }
-
-        if let imageContent = readImage(from: pasteboard) {
-            return imageContent
-        }
-
-        if let urlContent = readURL(from: pasteboard) {
-            return urlContent
-        }
-
-        return readText(from: pasteboard)
-    }
-
-    private static func hasDirectImageRepresentation(in pasteboard: NSPasteboard) -> Bool {
-        guard let declaredTypes = pasteboard.pasteboardItems?.flatMap(\.types) else {
-            return false
-        }
-
-        return declaredTypes.contains { pasteboardType in
-            guard pasteboardType != fileIconType,
-                  let contentType = UTType(pasteboardType.rawValue)
-            else {
-                return false
+        if let image = imageSnapshot(includeIcons: true) { return .snapshot(image) }
+        if types.contains(.URL) {
+            if let string = pasteboard.string(forType: .URL) {
+                return .snapshot(ClipboardSnapshot(payload: .url(string)))
             }
-            return contentType.conforms(to: .image) && !contentType.conforms(to: .pdf)
+            unavailable = true
+        }
+        if let string = pasteboard.string(forType: .string) {
+            return .snapshot(ClipboardSnapshot(payload: .text(string)))
+        }
+        if types.contains(.string) { unavailable = true }
+        return unavailable ? .unavailable : .ignored
+    }
+
+    public static func decode(_ snapshot: ClipboardSnapshot) -> CapturedClipboardContent? {
+        autoreleasepool {
+            switch snapshot.payload {
+            case let .files(paths, sourceBundleIdentifier):
+                let files = contentForFilePaths(paths)
+                return readSingleImageFile(from: files, sourceBundleIdentifier: sourceBundleIdentifier) ?? files
+            case let .image(data, _):
+                if let png = contentForPNG(data) { return png }
+                guard let image = NSImage(data: data) else { return nil }
+                return contentForImage(image)
+            case let .pdf(data):
+                return contentForPDF(data)
+            case let .url(string):
+                guard let url = URL(string: string), url.scheme != nil else { return contentForText(string) }
+                return urlContent(url.absoluteString)
+            case let .text(string):
+                if string.utf8.count <= 8_192,
+                   let url = URL(string: string.trimmingCharacters(in: .whitespacesAndNewlines)),
+                   url.scheme != nil, url.host != nil {
+                    return urlContent(url.absoluteString)
+                }
+                return contentForText(string)
+            }
         }
     }
 
-    private static func hasPDFRepresentation(in pasteboard: NSPasteboard) -> Bool {
-        (pasteboard.types ?? []).contains { pasteboardType in
-            pasteboardType == .pdf || UTType(pasteboardType.rawValue)?.conforms(to: .pdf) == true
-        }
-    }
-
-    private static func readFiles(from pasteboard: NSPasteboard) -> CapturedClipboardContent? {
+    private static func readFilePaths(from pasteboard: NSPasteboard) -> [String]? {
         if let paths = pasteboard.propertyList(forType: filenamesType) as? [String], !paths.isEmpty {
-            return contentForFilePaths(paths)
+            return paths
         }
 
         let options: [NSPasteboard.ReadingOptionKey: Any] = [.urlReadingFileURLsOnly: true]
         if let objects = pasteboard.readObjects(forClasses: [NSURL.self], options: options) as? [NSURL], !objects.isEmpty {
             let urls = objects.map { $0 as URL }
-            return contentForFilePaths(urls.map(\.path))
+            return urls.map(\.path)
         }
 
         return nil
@@ -100,19 +155,7 @@ public enum PasteboardReader {
         )
     }
 
-    private static func readImage(from pasteboard: NSPasteboard) -> CapturedClipboardContent? {
-        guard let image = NSImage(pasteboard: pasteboard),
-              let content = contentForImage(image) else {
-            return nil
-        }
-        return content
-    }
-
-    private static func readPDF(from pasteboard: NSPasteboard) -> CapturedClipboardContent? {
-        guard let pdfData = pasteboard.data(forType: .pdf), !pdfData.isEmpty else {
-            return nil
-        }
-
+    private static func contentForPDF(_ pdfData: Data) -> CapturedClipboardContent {
         let contentHash = ContentHasher.hash(data: pdfData)
         let fileName = "Clipboard-\(contentHash.prefix(12)).pdf"
         return CapturedClipboardContent(
@@ -137,13 +180,28 @@ public enum PasteboardReader {
               url.isFileURL,
               let contentType = UTType(filenameExtension: url.pathExtension),
               contentType.conforms(to: .image),
-              !contentType.conforms(to: .pdf),
-              let image = NSImage(contentsOf: url)
+              !contentType.conforms(to: .pdf)
         else {
             return nil
         }
 
+        if contentType.conforms(to: .png), let data = try? Data(contentsOf: url), let png = contentForPNG(data) { return png }
+        guard let image = NSImage(contentsOf: url) else { return nil }
         return contentForImage(image)
+    }
+
+    private static func contentForPNG(_ data: Data) -> CapturedClipboardContent? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, [kCGImageSourceShouldCache: false] as CFDictionary),
+              (CGImageSourceGetType(source) as String?) == UTType.png.identifier,
+              CGImageSourceGetStatus(source) == .statusComplete,
+              let image = CGImageSourceCreateImageAtIndex(source, 0, [kCGImageSourceShouldCacheImmediately: true] as CFDictionary),
+              CGImageSourceGetStatusAtIndex(source, 0) == .statusComplete,
+              image.width > 0, image.height > 0
+        else { return nil }
+        return CapturedClipboardContent(
+            kind: .image, title: "Image", subtitle: "\(image.width) x \(image.height)",
+            imagePNGData: data, contentHash: ContentHasher.hash(data: data)
+        )
     }
 
     private static func contentForImage(_ image: NSImage) -> CapturedClipboardContent? {
@@ -160,23 +218,6 @@ public enum PasteboardReader {
         )
     }
 
-    private static func readURL(from pasteboard: NSPasteboard) -> CapturedClipboardContent? {
-        if pasteboard.types?.contains(.URL) == true,
-           let url = NSURL(from: pasteboard) as URL? {
-            return urlContent(url.absoluteString)
-        }
-
-        if let string = pasteboard.string(forType: .string),
-           string.utf8.count <= 8_192,
-           let url = URL(string: string.trimmingCharacters(in: .whitespacesAndNewlines)),
-           url.scheme != nil,
-           url.host != nil {
-            return urlContent(url.absoluteString)
-        }
-
-        return nil
-    }
-
     private static func urlContent(_ value: String) -> CapturedClipboardContent {
         CapturedClipboardContent(
             kind: .url,
@@ -187,11 +228,7 @@ public enum PasteboardReader {
         )
     }
 
-    private static func readText(from pasteboard: NSPasteboard) -> CapturedClipboardContent? {
-        guard let string = pasteboard.string(forType: .string) else {
-            return nil
-        }
-
+    private static func contentForText(_ string: String) -> CapturedClipboardContent? {
         let title = ClipboardText.title(for: string)
         guard !title.isEmpty else {
             return nil

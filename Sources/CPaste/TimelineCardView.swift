@@ -76,7 +76,7 @@ struct TimelineCardView: View, Equatable {
                 isHovering = hovering
             }
         }
-        .onDrag { dragProvider() }
+        .modifier(ClipboardDragSource(item: item, imageURL: imageURL))
         .contextMenu { contextMenu }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityLabel)
@@ -399,30 +399,6 @@ struct TimelineCardView: View, Equatable {
         return name.isEmpty ? path : name
     }
 
-    private func dragProvider() -> NSItemProvider {
-        switch item.kind {
-        case .text:
-            return NSItemProvider(object: item.text as NSString)
-        case .url:
-            if let url = URL(string: item.text) {
-                return NSItemProvider(object: url as NSURL)
-            }
-            return NSItemProvider(object: item.text as NSString)
-        case .file:
-            if let first = item.fileURLs.first.flatMap(URL.init(string:)),
-               let provider = NSItemProvider(contentsOf: first) {
-                return provider
-            }
-            return NSItemProvider(object: item.text as NSString)
-        case .image:
-            if let imageURL,
-               let provider = NSItemProvider(contentsOf: imageURL) {
-                return provider
-            }
-            return NSItemProvider(object: item.title as NSString)
-        }
-    }
-
     private var accessibilityLabel: String {
         [
             item.kind.localizedDisplayName,
@@ -432,125 +408,5 @@ struct TimelineCardView: View, Equatable {
         ]
         .compactMap { $0 }
         .joined(separator: ", ")
-    }
-}
-
-struct SourceApplicationIcon: View {
-    let name: String?
-    let bundleIdentifier: String?
-    var size: CGFloat = 28
-
-    var body: some View {
-        Group {
-            if let icon = SourceApplicationIconCache.shared.icon(bundleIdentifier: bundleIdentifier) {
-                Image(nsImage: icon)
-                    .resizable()
-                    .interpolation(.high)
-                    .scaledToFit()
-            } else {
-                ZStack {
-                    RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
-                        .fill(Color.black.opacity(0.20))
-                    Text(initials)
-                        .font(.system(size: max(8, size * 0.34), weight: .bold, design: .rounded))
-                        .foregroundStyle(Color.white.opacity(0.94))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                }
-            }
-        }
-        .frame(width: size, height: size)
-        .clipShape(RoundedRectangle(cornerRadius: size * 0.22, style: .continuous))
-        .accessibilityLabel(name ?? CPasteL10n.text("来源应用", "Source application"))
-    }
-
-    private var initials: String {
-        let words = (name ?? "App")
-            .split(whereSeparator: { $0.isWhitespace || $0 == "-" })
-        let value = words.prefix(2).compactMap(\.first).map(String.init).joined()
-        return value.isEmpty ? "A" : value.uppercased()
-    }
-}
-
-private final class SourceApplicationIconCache {
-    static let shared = SourceApplicationIconCache()
-
-    private let cache = NSCache<NSString, NSImage>()
-
-    func icon(bundleIdentifier: String?) -> NSImage? {
-        guard let bundleIdentifier, !bundleIdentifier.isEmpty else {
-            return nil
-        }
-
-        let key = bundleIdentifier as NSString
-        if let cached = cache.object(forKey: key) {
-            return cached
-        }
-
-        guard let applicationURL = applicationURL(for: bundleIdentifier) else {
-            return nil
-        }
-
-        let workspaceIcon = iconImage(for: applicationURL) ?? NSWorkspace.shared.icon(forFile: applicationURL.path)
-        let size = NSSize(width: 64, height: 64)
-        let rasterizedIcon = NSImage(size: size)
-        rasterizedIcon.lockFocus()
-        NSGraphicsContext.current?.imageInterpolation = .high
-        workspaceIcon.draw(
-            in: NSRect(origin: .zero, size: size),
-            from: NSRect(origin: .zero, size: workspaceIcon.size),
-            operation: .sourceOver,
-            fraction: 1
-        )
-        rasterizedIcon.unlockFocus()
-        rasterizedIcon.isTemplate = false
-        cache.setObject(rasterizedIcon, forKey: key)
-        return rasterizedIcon
-    }
-
-    private func applicationURL(for bundleIdentifier: String) -> URL? {
-        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) {
-            return url
-        }
-
-        let fileManager = FileManager.default
-        let roots = [
-            URL(fileURLWithPath: "/Applications", isDirectory: true),
-            URL(fileURLWithPath: "/System/Applications", isDirectory: true),
-            URL(fileURLWithPath: "/System/Applications/Utilities", isDirectory: true),
-            URL(fileURLWithPath: "/System/Library/CoreServices", isDirectory: true),
-            fileManager.homeDirectoryForCurrentUser.appendingPathComponent("Applications", isDirectory: true)
-        ]
-
-        for root in roots {
-            guard let children = try? fileManager.contentsOfDirectory(
-                at: root,
-                includingPropertiesForKeys: [.isDirectoryKey],
-                options: [.skipsHiddenFiles]
-            ) else {
-                continue
-            }
-
-            if let match = children.first(where: { url in
-                url.pathExtension == "app" && Bundle(url: url)?.bundleIdentifier == bundleIdentifier
-            }) {
-                return match
-            }
-        }
-
-        return nil
-    }
-
-    private func iconImage(for applicationURL: URL) -> NSImage? {
-        guard let bundle = Bundle(url: applicationURL),
-              let resourcesURL = bundle.resourceURL,
-              let rawName = bundle.object(forInfoDictionaryKey: "CFBundleIconFile") as? String,
-              !rawName.isEmpty
-        else {
-            return nil
-        }
-
-        let filename = (rawName as NSString).pathExtension.isEmpty ? "\(rawName).icns" : rawName
-        return NSImage(contentsOf: resourcesURL.appendingPathComponent(filename, isDirectory: false))
     }
 }

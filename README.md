@@ -36,6 +36,8 @@ Check delayed paste delivery and history-capacity confirmation with isolated eff
 ```sh
 ./scripts/check_paste_delivery.sh
 ./scripts/check_history_capacity.sh
+./scripts/check_capture_shutdown.sh
+./scripts/check_visual_resources.sh
 ```
 
 Run the full quality gate:
@@ -124,7 +126,11 @@ History is stored locally under:
 
 Text entries larger than 64 KiB keep their full UTF-8 body in separate local files, so ordinary history updates do not rewrite large text inside the index. Existing history migrates automatically without truncating content or changing pins, timestamps, source metadata, or attachments. Routine saves and full-text searches run in the background; quitting waits for pending saves.
 
+Clipboard capture takes a native pasteboard snapshot, then performs image validation, conversion, hashing, and attachment staging on a bounded background pipeline. Valid PNG data keeps its original bytes. Normal quit waits for accepted captures to reach history before saving. Image thumbnails share a two-operation decoding budget, and source-app icon lookups run in the background with bounded caching.
+
 CPaste retains a valid history backup and preserves damaged files before recovery. If it cannot safely preserve the original history, it blocks replacement writes and shows a storage warning. Keep the entire storage directory together when backing it up, including the text and attachment files referenced by the indexes.
+
+After repairing a storage problem, open **Settings > Privacy > History Storage > Retry Saving**. Accepted content that failed to save remains available for retry while the app is running. If another program has independently changed known disk history, CPaste preserves a complete local recovery copy and keeps the external history intact. The settings page provides shortcuts to the data folder and saved recovery copy.
 
 Clipboard entries marked as concealed, transient, auto-generated, or as coming from a supported password manager are ignored. The storage and blob directories are restricted to the current user, but history contents are not encrypted at the application level.
 

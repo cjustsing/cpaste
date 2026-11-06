@@ -112,6 +112,32 @@ enum SnapshotRenderer {
                 appState: makeReadyState(),
                 inspectorPresented: false
             )
+        case "11-storage-retry":
+            let seeded = makeDemoStore(name: "preview-storage-retry")
+            guard seeded.save() else { throw SnapshotError.fixtureUnavailable }
+            let manager = SnapshotRetryFileManager(historyPath: seeded.historyURL.path)
+            let store = ClipboardStore(storageDirectory: seeded.storageDirectory, fileManager: manager)
+            guard store.storageIssue == .readOnly else { throw SnapshotError.fixtureUnavailable }
+            store.insertCaptured(CapturedClipboardContent(
+                kind: .text, title: "Pending recovery fixture",
+                text: "Complete synthetic content retained until retry.",
+                contentHash: "snapshot-storage-retry-pending"
+            ))
+            guard !store.save() else { throw SnapshotError.fixtureUnavailable }
+            // Simulate repaired permissions while the protected state remains
+            // latched, so the real Settings action must perform safe retry.
+            manager.deniesHistoryAttributes = false
+            let state = makeReadyState()
+            state.storageWarning = store.storageIssue?.localizedMessage
+            showPanelPreview(
+                size: NSSize(width: 1_180, height: 440), store: store,
+                appState: state, inspectorPresented: false
+            )
+        case "12-multi-file-drag":
+            showPreview(
+                DragValidationView().preferredColorScheme(.dark),
+                size: NSSize(width: 730, height: 530)
+            )
         default:
             throw SnapshotError.unknownScene(rawName)
         }
@@ -271,7 +297,25 @@ enum SnapshotRenderer {
             },
             setHistoryLimit: { limit in store.setMaxItems(limit) },
             openItem: { _ in },
-            setInspectorPresented: { _ in }
+            setInspectorPresented: { _ in },
+            retryStorage: {
+                guard !appState.isStorageRetrying else { return }
+                appState.isStorageRetrying = true
+                DispatchQueue.main.async {
+                    let saved = store.retrySaving()
+                    appState.storageWarning = store.storageIssue?.localizedMessage
+                    appState.statusMessage = saved
+                        ? CPasteL10n.text("已恢复保存，记录已保留", "Saving restored; records preserved")
+                        : CPasteL10n.text("保存仍未完成，请检查存储状态", "Saving is incomplete; check storage status")
+                    appState.isStorageRetrying = false
+                }
+            },
+            openStorageDirectory: { NSWorkspace.shared.open(store.storageDirectory) },
+            openRecoveryCopy: {
+                if let url = store.recoveryCopyURL {
+                    NSWorkspace.shared.activateFileViewerSelecting([url])
+                }
+            }
         )
     }
 
@@ -525,6 +569,17 @@ private enum SnapshotError: Error {
     case unknownScene(String)
     case windowNotFound
     case pngEncodingFailed
+    case fixtureUnavailable
+}
+
+private final class SnapshotRetryFileManager: FileManager, @unchecked Sendable {
+    let historyPath: String
+    var deniesHistoryAttributes = true
+    init(historyPath: String) { self.historyPath = historyPath; super.init() }
+    override func setAttributes(_ attributes: [FileAttributeKey: Any], ofItemAtPath path: String) throws {
+        if deniesHistoryAttributes && path == historyPath { throw CocoaError(.fileWriteNoPermission) }
+        try super.setAttributes(attributes, ofItemAtPath: path)
+    }
 }
 
 private final class SnapshotWindow: NSWindow {

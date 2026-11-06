@@ -5,6 +5,7 @@ import Foundation
 final class AppState: ObservableObject {
     @Published var statusMessage: String
     @Published var storageWarning: String?
+    @Published var isStorageRetrying = false
     @Published var isCapturePaused = false
     @Published var isHotKeyRegistered = true
     @Published var panelPresentationID = UUID()

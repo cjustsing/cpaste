@@ -16,6 +16,9 @@ struct HistoryPanelActions {
     var setHistoryLimit: (Int) -> Void
     var openItem: (ClipboardItem) -> Void
     var setInspectorPresented: (Bool) -> Void
+    var retryStorage: () -> Void
+    var openStorageDirectory: () -> Void
+    var openRecoveryCopy: () -> Void
 }
 
 struct HistoryPanelView: View {
@@ -86,7 +89,7 @@ struct HistoryPanelView: View {
     }
 
     private var canClearUnpinned: Bool {
-        store.items.contains { !$0.isPinned }
+        store.hasUnpinnedHistory
     }
 
     var body: some View {

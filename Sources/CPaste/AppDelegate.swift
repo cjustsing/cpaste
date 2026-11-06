@@ -29,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var previousApplication: NSRunningApplication?
     private var isInspectorPresented = false
     private var storageObservation: AnyCancellable?
+    private var pendingTermination: NSApplication?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         observeStorage()
@@ -45,15 +46,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         pasteDelivery.cancel()
-        guard store.save() else {
-            appState.storageWarning = CPasteL10n.text(
-                "历史尚未保存，暂未退出；请检查磁盘或权限",
-                "History could not be saved; check disk space or permissions before quitting"
-            )
-            showPanel()
-            return .terminateCancel
+        guard pendingTermination == nil else { return .terminateLater }
+        pendingTermination = sender
+        if !appState.isStorageRetrying {
+            finishTermination()
         }
-        return .terminateNow
+        return .terminateLater
+    }
+
+    private func finishTermination() {
+        monitor.finishPendingCaptures { [weak self] _ in
+            guard let self, let sender = self.pendingTermination else { return }
+            let saved = self.store.save()
+            self.pendingTermination = nil
+            if !saved {
+                self.monitor.start()
+                self.appState.storageWarning = CPasteL10n.text(
+                    "历史尚未保存，暂未退出；请在设置中重试保存",
+                    "History is unsaved; retry saving in Settings before quitting"
+                )
+                self.showPanel()
+            }
+            sender.reply(toApplicationShouldTerminate: saved)
+        }
+    }
+
+    private func retryStorage() {
+        guard !appState.isStorageRetrying, pendingTermination == nil else { return }
+        appState.isStorageRetrying = true
+        monitor.finishPendingCaptures { [weak self] _ in
+            guard let self else { return }
+            let saved = self.store.retrySaving()
+            self.appState.storageWarning = self.store.storageIssue?.localizedMessage
+            self.appState.statusMessage = saved
+                ? CPasteL10n.text("已恢复保存，记录已保留", "Saving restored; records preserved")
+                : CPasteL10n.text("保存仍未完成，请检查存储状态", "Saving is incomplete; check storage status")
+            self.appState.isStorageRetrying = false
+            if self.pendingTermination != nil {
+                self.finishTermination()
+            } else {
+                self.monitor.start()
+            }
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -65,20 +99,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         storageObservation = store.$storageIssue
             .receive(on: DispatchQueue.main)
             .sink { [weak self] issue in
-                let message: String?
-                switch issue {
-                case .recoveredFromBackup:
-                    message = CPasteL10n.text("历史已从备份恢复", "History recovered from backup")
-                case .damagedHistoryPreserved:
-                    message = CPasteL10n.text("历史文件异常，原件已保留", "Damaged history preserved for recovery")
-                case .readOnly:
-                    message = CPasteL10n.text("历史存储不可用，已停止覆盖写入", "History storage unavailable; replacement writes blocked")
-                case .saveFailed:
-                    message = CPasteL10n.text("历史保存失败，请检查磁盘或权限", "History save failed; check disk space or permissions")
-                case nil:
-                    message = nil
-                }
-                self?.appState.storageWarning = message
+                self?.appState.storageWarning = issue?.localizedMessage
             }
     }
 
@@ -261,6 +282,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             openItem: { [weak self] item in self?.open(item) },
             setInspectorPresented: { [weak self] isPresented in
                 self?.setInspectorPresented(isPresented)
+            },
+            retryStorage: { [weak self] in self?.retryStorage() },
+            openStorageDirectory: { [weak self] in
+                guard let self else { return }
+                NSWorkspace.shared.open(self.store.storageDirectory)
+            },
+            openRecoveryCopy: { [weak self] in
+                guard let url = self?.store.recoveryCopyURL else { return }
+                NSWorkspace.shared.activateFileViewerSelecting([url])
             }
         )
 
@@ -461,7 +491,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func confirmClearUnpinned() {
-        guard store.items.contains(where: { !$0.isPinned }) else {
+        guard store.hasUnpinnedHistory else {
             appState.statusMessage = CPasteL10n.text("没有可清理的记录", "Nothing to clear")
             return
         }
@@ -479,7 +509,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func performClearUnpinned() {
-        guard store.items.contains(where: { !$0.isPinned }) else {
+        guard store.hasUnpinnedHistory else {
             appState.statusMessage = CPasteL10n.text("没有可清理的记录", "Nothing to clear")
             return
         }
