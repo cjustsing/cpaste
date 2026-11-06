@@ -209,6 +209,8 @@ Open the panel and start typing, without clicking the search field first. Search
 - Content types.
 - Source-app names and bundle identifiers.
 
+`Command-F` returns focus to search. `Command-A` selects all text for replacement or deletion. Cut, copy, paste, undo, and redo use the native editor; Chinese input-method composition keeps its Return, Space, arrow-key, and Escape behavior.
+
 ### 7.2 History and Pinned
 
 - History shows all items with the newest first.
@@ -250,6 +252,7 @@ Navigating between cards with the arrow keys scrolls the timeline to the selecte
 | --- | --- |
 | `Shift-Command-V` | Show or hide CPaste globally |
 | `Command-F` | Focus search |
+| `Command-A` | Select all text in the current input field |
 | `Option-1` / `Option-2` | Switch to History / Pinned |
 | `Tab` | Move focus between search and the timeline |
 | `Left` / `Up` | Select the previous card |
@@ -259,7 +262,7 @@ Navigating between cards with the arrow keys scrolls the timeline to the selecte
 | `Return` | Paste the selected item |
 | `Shift-Return` | Paste as plain text; images show a status message instead |
 | `Command-1` ... `Command-9` | Paste visible item 1 ... 9 |
-| `Command-C` | Copy the selected item only |
+| `Command-C` | Copy selected text in a focused, nonempty search field; otherwise copy the selected history item |
 | `Shift-Command-P` | Pin or unpin the selected item |
 | `Command-I` | Expand or collapse the inspector |
 | `Delete` | Delete the selected item |

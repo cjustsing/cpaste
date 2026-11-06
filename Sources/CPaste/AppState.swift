@@ -1,3 +1,4 @@
+import AppKit
 import CPasteCore
 import Foundation
 
@@ -32,6 +33,7 @@ final class AppState: ObservableObject {
 
         CPasteL10n.language = language
         self.language = language
+        NativeAppMenu.install(in: .shared)
         statusMessage = isCapturePaused
             ? CPasteL10n.text("已暂停", "Paused")
             : CPasteL10n.text("就绪", "Ready")

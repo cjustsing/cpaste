@@ -25,6 +25,12 @@ Run the lightweight core checks:
 swift run CPasteCoreChecks
 ```
 
+Check native text editing with an isolated AppKit field editor:
+
+```sh
+./scripts/check_app_input_full.sh
+```
+
 Run the full quality gate:
 
 ```sh

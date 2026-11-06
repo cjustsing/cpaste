@@ -1,6 +1,7 @@
 import AppKit
 
 let app = NSApplication.shared
+NativeAppMenu.install(in: app)
 
 if let snapshotDirectory = SnapshotRenderer.snapshotDirectoryArgument() {
     app.setActivationPolicy(.accessory)

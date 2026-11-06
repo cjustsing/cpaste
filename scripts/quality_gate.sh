@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT_DIR"
 
 swift run CPasteCoreChecks
+./scripts/check_app_input_full.sh
 swift build -c release --arch arm64
 ./scripts/build_app.sh >/tmp/cpaste-build.out
 cat /tmp/cpaste-build.out
