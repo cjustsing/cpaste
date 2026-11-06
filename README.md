@@ -105,9 +105,23 @@ History is stored locally under:
 ~/Library/Application Support/CPaste
 ```
 
+Text entries larger than 64 KiB keep their full UTF-8 body in separate local files, so ordinary history updates do not rewrite large text inside the index. Existing history migrates automatically without truncating content or changing pins, timestamps, source metadata, or attachments. Routine saves and full-text searches run in the background; quitting waits for pending saves.
+
+CPaste retains a valid history backup and preserves damaged files before recovery. If it cannot safely preserve the original history, it blocks replacement writes and shows a storage warning. Keep the entire storage directory together when backing it up, including the text and attachment files referenced by the indexes.
+
 Clipboard entries marked as concealed, transient, auto-generated, or as coming from a supported password manager are ignored. The storage and blob directories are restricted to the current user, but history contents are not encrypted at the application level.
 
 No network sync or upload is implemented.
+
+To verify a legacy history migration on a disposable copy:
+
+```sh
+swift run CPasteCoreChecks --migration-source "/path/to/legacy/CPaste"
+```
+
+This check compares every history item and binary attachment and does not initialize or write a store in the source directory.
+
+The on-disk format, recovery behavior, and background search contract are documented in [Storage and recovery](docs/Storage-and-Recovery.md).
 
 ## Support CPaste
 

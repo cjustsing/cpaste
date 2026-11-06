@@ -56,6 +56,7 @@ func testClipboardStorageUsesPrivatePermissions() {
         imagePNGData: Data([0x89, 0x50, 0x4e, 0x47]),
         contentHash: "private-image"
     ))
+    store.save()
 
     let newBlobURL = blobDirectory.appendingPathComponent("private-image.png", isDirectory: false)
     check(

@@ -3,11 +3,17 @@ import Foundation
 
 final class AppState: ObservableObject {
     @Published var statusMessage: String
+    @Published var storageWarning: String?
     @Published var isCapturePaused = false
     @Published var isHotKeyRegistered = true
     @Published var panelPresentationID = UUID()
+    @Published var isPanelVisible = false
     @Published private(set) var language: AppLanguage
     @Published private(set) var themeStyle: AppThemeStyle
+
+    var displayStatusMessage: String {
+        storageWarning ?? statusMessage
+    }
 
     init(
         themeStyle: AppThemeStyle = AppEnvironment.themeStyle,

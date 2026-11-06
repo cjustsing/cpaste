@@ -30,6 +30,7 @@ struct HistoryPanelView: View {
     @ObservedObject var store: ClipboardStore
     @ObservedObject var appState: AppState
     let actions: HistoryPanelActions
+    @StateObject private var search: ClipboardSearch
 
     @State private var searchText = ""
     @State private var selectedKind: ClipboardKind?
@@ -50,15 +51,26 @@ struct HistoryPanelView: View {
         self.store = store
         self.appState = appState
         self.actions = actions
+        _search = StateObject(wrappedValue: ClipboardSearch(items: store.items, revision: store.revision))
         _isInspectorPresented = State(initialValue: initialInspectorPresented)
     }
 
+    private var searchQuery: ClipboardSearchQuery {
+        ClipboardSearchQuery(text: searchText, kind: selectedKind, pinnedOnly: scope == .pinned)
+    }
+
     private var visibleItems: [ClipboardItem] {
-        store.filteredItems(
-            search: searchText,
-            kind: selectedKind,
-            pinnedOnly: scope == .pinned
-        )
+        let query = searchQuery
+        if query.isEmpty {
+            return store.items.filter(query.includes)
+        }
+        // Checking the live query/revision here also protects keyboard actions
+        // in the interval before SwiftUI delivers the corresponding onChange.
+        return search.matchingItems(query: query, revision: store.revision) ?? []
+    }
+
+    private var isSearching: Bool {
+        !searchQuery.isEmpty && search.matchingItems(query: searchQuery, revision: store.revision) == nil
     }
 
     private func selectedItem(in items: [ClipboardItem]) -> ClipboardItem? {
@@ -114,19 +126,37 @@ struct HistoryPanelView: View {
                 .frame(width: 0, height: 0)
         }
         .onAppear {
+            search.search(query: searchQuery)
             setSelection(items.first?.id)
             isSearchFocused = true
+        }
+        .onReceive(store.$revision) { revision in
+            // The store publishes its revision only after its items mutation.
+            search.update(items: store.items, revision: revision)
+        }
+        .onChange(of: searchQuery) { query in
+            search.search(query: query)
+        }
+        .onChange(of: appState.isPanelVisible) { isVisible in
+            if isVisible {
+                search.search(query: searchQuery)
+            } else {
+                search.cancel()
+            }
         }
         .onChange(of: appState.panelPresentationID) { _ in
             prepareForPresentation()
         }
         .onChange(of: items.map(\.id)) { ids in
-            if let selectedID, ids.contains(selectedID) {
-                return
-            }
-            setSelection(ids.first)
+            reconcileSelection(visibleIDs: ids)
+        }
+        .onChange(of: isSearching) { isSearching in
+            // A completed empty result has the same IDs as the pending state.
+            // Its completion still needs to clear a now-invalid selection.
+            if !isSearching { reconcileSelection(visibleIDs: visibleItems.map(\.id)) }
         }
         .onDisappear {
+            search.cancel()
             thumbnailPrefetchTask?.cancel()
         }
         .sheet(isPresented: $presentationState.isSettingsPresented) {
@@ -175,13 +205,17 @@ struct HistoryPanelView: View {
             imageURL: store.blobURL(for: selectedItem),
             ageText: relativeDescription(for: selectedItem.lastCopiedAt),
             hasAccessibilityPermission: actions.hasAccessibilityPermission(),
-            paste: { actions.paste(selectedItem) },
-            pastePlainText: { actions.pastePlainText(selectedItem) },
-            copy: { actions.copy(selectedItem) },
-            togglePinned: { togglePinned(selectedItem, in: visibleItems) },
-            open: { actions.openItem(selectedItem) },
+            paste: { withCurrentItem(selectedItem.id, actions.paste) },
+            pastePlainText: { withCurrentItem(selectedItem.id, actions.pastePlainText) },
+            copy: { withCurrentItem(selectedItem.id, actions.copy) },
+            togglePinned: {
+                withCurrentItem(selectedItem.id) { togglePinned($0, in: visibleItems) }
+            },
+            open: { withCurrentItem(selectedItem.id, actions.openItem) },
             openAccessibility: actions.openAccessibility,
-            delete: { delete(selectedItem, from: visibleItems) }
+            delete: {
+                withCurrentItem(selectedItem.id) { delete($0, from: visibleItems) }
+            }
         )
         .frame(height: 142)
 
@@ -569,29 +603,37 @@ struct HistoryPanelView: View {
                                 imageURL: store.blobURL(for: item),
                                 ageText: relativeDescription(for: item.lastCopiedAt),
                                 select: {
-                                    select(item)
+                                    withCurrentItem(item.id, select)
                                 },
                                 paste: {
-                                    select(item)
-                                    actions.paste(item)
+                                    withCurrentItem(item.id) {
+                                        select($0)
+                                        actions.paste($0)
+                                    }
                                 },
                                 pastePlainText: {
-                                    select(item)
-                                    actions.pastePlainText(item)
+                                    withCurrentItem(item.id) {
+                                        select($0)
+                                        actions.pastePlainText($0)
+                                    }
                                 },
                                 copy: {
-                                    select(item)
-                                    actions.copy(item)
+                                    withCurrentItem(item.id) {
+                                        select($0)
+                                        actions.copy($0)
+                                    }
                                 },
                                 togglePinned: {
-                                    togglePinned(item, in: items)
+                                    withCurrentItem(item.id) { togglePinned($0, in: visibleItems) }
                                 },
                                 open: {
-                                    select(item)
-                                    actions.openItem(item)
+                                    withCurrentItem(item.id) {
+                                        select($0)
+                                        actions.openItem($0)
+                                    }
                                 },
                                 delete: {
-                                    delete(item, from: items)
+                                    withCurrentItem(item.id) { delete($0, from: visibleItems) }
                                 }
                             )
                             .equatable()
@@ -608,6 +650,7 @@ struct HistoryPanelView: View {
                     if items.isEmpty {
                         EmptyTimelineView(
                             hasActiveFilter: hasActiveFilter,
+                            isSearching: isSearching,
                             clearFilters: resetFilters
                         )
                     }
@@ -617,9 +660,17 @@ struct HistoryPanelView: View {
                         return
                     }
                     prefetchThumbnails(around: id, in: items)
-                    guard shouldScrollSelection else {
-                        return
-                    }
+                }
+                .onChange(of: TimelineSelection.scrollTarget(
+                    selectedID: selectedID,
+                    visibleIDs: items.map(\.id),
+                    isSearching: isSearching,
+                    shouldScroll: shouldScrollSelection
+                )) { id in
+                    guard let id else { return }
+                    // Pending results temporarily remove the scroll target.
+                    // Restoring it must scroll even when selectedID is unchanged.
+                    prefetchThumbnails(around: id, in: items)
                     scrollProxy.scrollTo(id, anchor: .center)
                 }
             }
@@ -634,10 +685,11 @@ struct HistoryPanelView: View {
                 .fill(statusColor)
                 .frame(width: 7, height: 7)
 
-            Text(appState.statusMessage)
+            Text(appState.displayStatusMessage)
                 .font(.system(size: 10.5, weight: .medium))
                 .foregroundStyle(CPasteTheme.textSecondary)
                 .lineLimit(1)
+                .help(appState.displayStatusMessage)
 
             if hasActiveFilter {
                 Button {
@@ -714,7 +766,7 @@ struct HistoryPanelView: View {
     }
 
     private var statusColor: Color {
-        if appState.isCapturePaused || !appState.isHotKeyRegistered {
+        if appState.storageWarning != nil || appState.isCapturePaused || !appState.isHotKeyRegistered {
             return CPasteTheme.amber
         }
         return CPasteTheme.accent
@@ -795,6 +847,11 @@ struct HistoryPanelView: View {
         isSearchFocused = true
     }
 
+    private func withCurrentItem(_ id: UUID, _ action: (ClipboardItem) -> Void) {
+        guard let item = visibleItems.first(where: { $0.id == id }) else { return }
+        action(item)
+    }
+
     private func togglePinned(_ item: ClipboardItem, in items: [ClipboardItem]) {
         if scope == .pinned, item.isPinned {
             selectReplacement(afterRemoving: item.id, from: items)
@@ -820,35 +877,41 @@ struct HistoryPanelView: View {
 
     private func selectScope(_ nextScope: HistoryScope) {
         scope = nextScope
-        let items = store.filteredItems(
-            search: searchText,
-            kind: selectedKind,
-            pinnedOnly: nextScope == .pinned
-        )
-        setSelection(items.first?.id)
+        search.search(query: searchQuery)
+        setSelection(visibleItems.first?.id)
         isSearchFocused = true
     }
 
     private func moveSelection(by offset: Int, in items: [ClipboardItem]) {
-        guard !items.isEmpty else {
-            setSelection(nil)
-            return
-        }
-
-        isSearchFocused = true
-        let currentIndex = selectedID.flatMap { id in items.firstIndex(where: { $0.id == id }) } ?? 0
-        selectIndex(currentIndex + offset, in: items)
+        navigateSelection(.offset(offset), in: items)
     }
 
     private func selectIndex(_ index: Int, in items: [ClipboardItem]) {
-        guard !items.isEmpty else {
-            setSelection(nil)
-            return
-        }
+        navigateSelection(.index(index), in: items)
+    }
 
-        let clampedIndex = min(max(index, 0), items.count - 1)
-        setSelection(items[clampedIndex].id)
+    private func navigateSelection(_ navigation: TimelineSelection.Navigation, in items: [ClipboardItem]) {
+        let change = TimelineSelection.navigate(
+            navigation,
+            selectedID: selectedID,
+            visibleIDs: items.map(\.id),
+            isSearching: isSearching
+        )
+        guard case .select = change else { return }
+        applySelection(change)
         isSearchFocused = true
+    }
+
+    private func reconcileSelection(visibleIDs: [UUID]) {
+        applySelection(TimelineSelection.reconcile(
+            selectedID: selectedID,
+            visibleIDs: visibleIDs,
+            isSearching: isSearching
+        ))
+    }
+
+    private func applySelection(_ change: TimelineSelection.Change) {
+        if case .select(let id) = change { setSelection(id) }
     }
 
     private func setSelection(_ id: UUID?, scrollToSelection: Bool = true) {
@@ -881,7 +944,8 @@ struct HistoryPanelView: View {
         searchText = ""
         selectedKind = nil
         scope = .history
-        setSelection(store.filteredItems(search: "").first?.id)
+        search.search(query: searchQuery)
+        setSelection(visibleItems.first?.id)
         isSearchFocused = true
     }
 
@@ -889,16 +953,13 @@ struct HistoryPanelView: View {
         presentationState.resetTransientUI()
         searchText = ""
         scope = .history
-        let items = store.filteredItems(
-            search: "",
-            kind: selectedKind,
-            pinnedOnly: false
-        )
-        setSelection(items.first?.id)
+        search.search(query: searchQuery)
+        setSelection(visibleItems.first?.id)
         isSearchFocused = true
     }
 
     private func closePanel() {
+        search.cancel()
         presentationState.resetTransientUI()
         actions.close()
     }
@@ -947,15 +1008,29 @@ private enum HistoryScope: String, CaseIterable, Identifiable {
 
 private struct EmptyTimelineView: View {
     let hasActiveFilter: Bool
+    var isSearching = false
     var clearFilters: () -> Void
+
+    private var title: String {
+        if isSearching { return CPasteL10n.text("正在搜索…", "Searching…") }
+        return hasActiveFilter
+            ? CPasteL10n.text("没有匹配内容", "No Matches")
+            : CPasteL10n.text("暂无记录", "No Clipboard Items")
+    }
 
     var body: some View {
         VStack(spacing: 12) {
-            Image(systemName: hasActiveFilter ? "magnifyingglass" : "tray")
-                .font(.system(size: 32, weight: .light))
-                .foregroundStyle(CPasteTheme.textMuted)
+            if isSearching {
+                ProgressView()
+                    .controlSize(.small)
+                    .frame(height: 32)
+            } else {
+                Image(systemName: hasActiveFilter ? "magnifyingglass" : "tray")
+                    .font(.system(size: 32, weight: .light))
+                    .foregroundStyle(CPasteTheme.textMuted)
+            }
 
-            Text(hasActiveFilter ? CPasteL10n.text("没有匹配内容", "No Matches") : CPasteL10n.text("暂无记录", "No Clipboard Items"))
+            Text(title)
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(CPasteTheme.textSecondary)
 

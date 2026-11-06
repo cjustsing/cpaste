@@ -21,6 +21,7 @@ func testLargeTextKeepsFullContentWithBoundedPreviews() {
     defer { try? FileManager.default.removeItem(at: directory) }
     let store = ClipboardStore(storageDirectory: directory)
     store.insertCaptured(captured)
+    store.save()
     let reloaded = ClipboardStore(storageDirectory: directory)
     check(reloaded.items.first?.text == text, "persistence must not truncate the original content")
     check(reloaded.filteredItems(search: "cpastetailneedle").count == 1, "search must find text beyond the preview, ignoring case")

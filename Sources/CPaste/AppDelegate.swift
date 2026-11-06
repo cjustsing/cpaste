@@ -1,5 +1,6 @@
 import AppKit
 import ApplicationServices
+import Combine
 import CPasteCore
 import SwiftUI
 
@@ -26,8 +27,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var pendingPanelPresentationID: UUID?
     private var previousApplication: NSRunningApplication?
     private var isInspectorPresented = false
+    private var storageObservation: AnyCancellable?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        observeStorage()
         seedDemoDataIfNeeded()
         setupStatusItem()
         setupHotKey()
@@ -39,10 +42,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard store.save() else {
+            appState.storageWarning = CPasteL10n.text(
+                "历史尚未保存，暂未退出；请检查磁盘或权限",
+                "History could not be saved; check disk space or permissions before quitting"
+            )
+            showPanel()
+            return .terminateCancel
+        }
+        return .terminateNow
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         monitor.stop()
         hotKeyCenter.unregister()
-        store.save()
+    }
+
+    private func observeStorage() {
+        storageObservation = store.$storageIssue
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] issue in
+                let message: String?
+                switch issue {
+                case .recoveredFromBackup:
+                    message = CPasteL10n.text("历史已从备份恢复", "History recovered from backup")
+                case .damagedHistoryPreserved:
+                    message = CPasteL10n.text("历史文件异常，原件已保留", "Damaged history preserved for recovery")
+                case .readOnly:
+                    message = CPasteL10n.text("历史存储不可用，已停止覆盖写入", "History storage unavailable; replacement writes blocked")
+                case .saveFailed:
+                    message = CPasteL10n.text("历史保存失败，请检查磁盘或权限", "History save failed; check disk space or permissions")
+                case nil:
+                    message = nil
+                }
+                self?.appState.storageWarning = message
+            }
     }
 
     func applicationDidResignActive(_ notification: Notification) {
@@ -158,12 +193,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             panel.displayIfNeeded()
             NSApp.activate(ignoringOtherApps: true)
             panel.makeKeyAndOrderFront(nil)
+            self.appState.isPanelVisible = true
             self.pendingPanelPresentationID = nil
         }
     }
 
     private func hidePanel() {
         pendingPanelPresentationID = nil
+        appState.isPanelVisible = false
         panel?.orderOut(nil)
     }
 

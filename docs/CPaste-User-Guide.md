@@ -356,6 +356,8 @@ Left-click the menu bar icon to show or hide the timeline. Right-click it to ope
 
 CPaste stores the complete string. Long entries use bounded previews in cards and the inspector to keep the interface responsive. The inspector indicates when part of the preview is omitted. Full-text search, Copy, Paste, and drag out still use the entire original content.
 
+Bodies larger than 64 KiB are stored separately, keeping routine index updates small. Full-text searches run in the background. Changing the query, filters, or history invalidates older results so they cannot be acted on accidentally.
+
 ### 14.2 Links
 
 CPaste stores the URL string, emphasizes its host on the card, and opens it in the default browser.
@@ -382,10 +384,19 @@ Default directory:
 
 | Path | Contents |
 | --- | --- |
-| `history.json` | Text, URLs, file paths, source app, timestamps, and pin state |
+| `history.json` | Text summaries and body references, short text, URLs, file paths, source app, timestamps, and pin state |
+| `Text/*.txt` | Complete UTF-8 bodies larger than 64 KiB |
 | `Blobs/*` | Images and PDF content saved from the clipboard |
+| `history.backup.json`, `history.legacy-backup.json` | Valid history backup and original migration index |
+| `Recovery/*.json` | Damaged indexes preserved for recovery |
 
 CPaste skips clipboard data marked concealed, transient, auto-generated, or associated with supported password managers. Storage permissions restrict files to the current user, but contents are not encrypted at the application layer. CPaste contains no network upload implementation. Lowering history capacity immediately removes the oldest unpinned items as needed.
+
+Existing history migrates automatically while preserving full text, pins, source metadata, and timestamps. Routine changes save in order in the background; normal quit waits for pending saves.
+
+CPaste retains a valid history backup and preserves damaged originals before recovery. If the original cannot be preserved safely, replacement writes stop and the footer shows a storage warning. Back up or move the entire storage directory, including the text and attachment files referenced by the indexes.
+
+Recovery copies may retain earlier entries after clearing unpinned history. To remove all local data, quit the app and delete the entire data directory.
 
 ## 16. Isolated Demo Mode
 

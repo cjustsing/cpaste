@@ -2,6 +2,73 @@ import AppKit
 import CPasteCore
 import Foundation
 
+func runStorageRecoveryChecks() {
+    testLegacyTextMigrationKeepsFullMetadataAndPrivateFiles()
+    testRecoveryRetainsBackupDependenciesAndOriginalBytes()
+    testMissingTextRecoversLegacyBackupInsteadOfEmptyBody()
+    testUnpreservableHistoryBlocksWrites()
+    testBackgroundPersistenceFlushAndBlobReservation()
+    testWriteFailuresKeepLastGoodIndexAndCanRetry()
+    testCorruptBackupIsPreservedBeforeRotation()
+    testActiveBodyDamageIsRepairedFromCompleteMemoryText()
+    testActiveMissingTextCannotPoisonBackupOnRemoval()
+    testActiveCorruptBackupIsPreservedBeforeRotation()
+    testRepeatedDamagedBackupArchivingIsIdempotent()
+}
+
+func runBackgroundSearchChecks() {
+    testBackgroundSearchUsesWorkerAndPublishesOnMain()
+    testBackgroundSearchPreservesFullTextAndFilterSemantics()
+    testBackgroundSearchLatestQueryAndRevisionWin()
+    testBackgroundSearchDiscardsAlreadyQueuedCompletions()
+    testBackgroundSearchCancelAndEmptyQuery()
+    testSearchSelectionSurvivesPendingResultsAndRestoresScroll()
+}
+
+if CommandLine.arguments.contains("--storage-checks") {
+    runStorageRecoveryChecks()
+    print("Storage recovery checks passed")
+    exit(0)
+}
+if CommandLine.arguments.contains("--search-checks") {
+    runBackgroundSearchChecks()
+    print("Background search checks passed")
+    exit(0)
+}
+if CommandLine.arguments.contains("--active-dependency-regression") {
+    testActiveMissingTextCannotPoisonBackupOnRemoval()
+    print("Active dependency regression passed")
+    exit(0)
+}
+if CommandLine.arguments.contains("--active-backup-regression") {
+    testActiveCorruptBackupIsPreservedBeforeRotation()
+    print("Active backup regression passed")
+    exit(0)
+}
+if CommandLine.arguments.contains("--archive-regression") {
+    testRepeatedDamagedBackupArchivingIsIdempotent()
+    print("Recovery archive regression passed")
+    exit(0)
+}
+if CommandLine.arguments.contains("--large-storage-regression") {
+    testLargeTextStorageRegression()
+    print("Large storage regression passed")
+    exit(0)
+}
+if CommandLine.arguments.contains("--recovery-regression") {
+    testUnreadableHistoryPreservationRegression()
+    print("Recovery regression passed")
+    exit(0)
+}
+if let index = CommandLine.arguments.firstIndex(of: "--migration-source") {
+    guard CommandLine.arguments.indices.contains(index + 1) else {
+        fputs("Missing migration source directory\n", stderr)
+        exit(1)
+    }
+    checkLegacyHistoryMigration(sourceDirectory: URL(fileURLWithPath: CommandLine.arguments[index + 1], isDirectory: true))
+    exit(0)
+}
+
 @discardableResult
 func check(_ condition: @autoclosure () -> Bool, _ message: String) -> Bool {
     if !condition() {
@@ -166,6 +233,7 @@ func testPersistenceReloadsHistory() {
     }
     store.togglePinned(itemID)
 
+    store.save()
     let reloadedStore = ClipboardStore(storageDirectory: directory)
     check(reloadedStore.items.count == 1, "reloaded store should contain saved item")
     check(reloadedStore.items[0].title == "Persistent", "reloaded item title should match")
@@ -555,6 +623,7 @@ func testSourceApplicationMetadataPersistsAndSearches() {
     check(store.filteredItems(search: "Safari").count == 1, "source app name should be searchable")
     check(store.filteredItems(search: "com.apple.Safari").count == 1, "source bundle id should be searchable")
 
+    store.save()
     let reloadedStore = ClipboardStore(storageDirectory: directory)
     check(reloadedStore.items.first?.sourceAppName == "Safari", "source app name should persist")
     check(reloadedStore.items.first?.sourceBundleIdentifier == "com.apple.Safari", "source bundle id should persist")
@@ -843,6 +912,8 @@ testFilteringMatchesTextAndKind()
 testSensitiveAndTransientPasteboardTypesAreIgnored()
 testPasteboardTextRoundTripUsesNamedPasteboard()
 testLargeTextKeepsFullContentWithBoundedPreviews()
+testLargeTextStorageRegression()
+testUnreadableHistoryPreservationRegression()
 testTextExcerptsPreserveSmallAndUnicodeContent()
 testPersistenceReloadsHistory()
 testClipboardStorageUsesPrivatePermissions()
@@ -869,5 +940,7 @@ testThemeAvailabilityAndDefaultsFollowMacOSVersion()
 testLanguageResolutionAndSystemPreference()
 testThemeResolutionPreservesValidChoicesAndRejectsUnsupportedGlass()
 testPresentationStateClosesOnlyTheTopmostInterface()
+runStorageRecoveryChecks()
+runBackgroundSearchChecks()
 
 print("CPasteCoreChecks passed")

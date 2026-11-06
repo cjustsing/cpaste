@@ -1,21 +1,19 @@
-import AppKit
 import Combine
 import Foundation
 
 public final class ClipboardStore: ObservableObject {
-    private static let directoryPermissions = 0o700
-    private static let filePermissions = 0o600
-
     @Published public private(set) var items: [ClipboardItem] = []
+    @Published public private(set) var revision: UInt64 = 0
+    @Published public private(set) var storageIssue: ClipboardStorageIssue?
 
     public let storageDirectory: URL
     public let historyURL: URL
+    public let historyBackupURL: URL
     public let blobDirectory: URL
+    public let textDirectory: URL
     public var maxItems: Int
-
-    private let fileManager: FileManager
-    private let encoder: JSONEncoder
-    private let decoder: JSONDecoder
+    private let persistence: ClipboardPersistence
+    private var reportSequence: UInt64 = 0
 
     public init(
         storageDirectory: URL = ClipboardStore.defaultStorageDirectory(),
@@ -23,22 +21,21 @@ public final class ClipboardStore: ObservableObject {
         fileManager: FileManager = .default
     ) {
         self.storageDirectory = storageDirectory
-        self.historyURL = storageDirectory.appendingPathComponent("history.json", isDirectory: false)
-        self.blobDirectory = storageDirectory.appendingPathComponent("Blobs", isDirectory: true)
         self.maxItems = maxItems
-        self.fileManager = fileManager
-
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        encoder.dateEncodingStrategy = .iso8601
-        self.encoder = encoder
-
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        self.decoder = decoder
-
-        prepareStorage()
-        load()
+        let persistence = ClipboardPersistence(directory: storageDirectory, fileManager: fileManager)
+        self.persistence = persistence
+        historyURL = persistence.historyURL
+        historyBackupURL = persistence.backupURL
+        blobDirectory = persistence.blobDirectory
+        textDirectory = persistence.textDirectory
+        let loaded = persistence.load()
+        items = loaded.items
+        storageIssue = loaded.issue
+        revision &+= 1
+        persistence.onReport = { [weak self] report in
+            DispatchQueue.main.async { self?.apply(report) }
+        }
+        if loaded.needsMigration { requestSave() }
     }
 
     public static func defaultStorageDirectory() -> URL {
@@ -51,27 +48,21 @@ public final class ClipboardStore: ObservableObject {
         let now = Date()
         var resolvedFileURLs = captured.fileURLs
         var blobFilename: String?
-
-        if let imagePNGData = captured.imagePNGData {
-            let filename = "\(captured.contentHash).png"
-            guard persistBlob(imagePNGData, filename: filename) else {
-                return
+        do {
+            if let imagePNGData = captured.imagePNGData {
+                let filename = "\(captured.contentHash).png"
+                try persistence.persistBlob(imagePNGData, filename: filename)
+                blobFilename = filename
+            } else if let fileData = captured.fileData, let requestedFileName = captured.fileName {
+                let filename = URL(fileURLWithPath: requestedFileName).lastPathComponent
+                try persistence.persistBlob(fileData, filename: filename)
+                blobFilename = filename
+                resolvedFileURLs = [blobDirectory.appendingPathComponent(filename).absoluteString]
             }
-            blobFilename = filename
-        } else if let fileData = captured.fileData,
-                  let requestedFileName = captured.fileName {
-            let filename = URL(fileURLWithPath: requestedFileName).lastPathComponent
-            guard !filename.isEmpty,
-                  filename != ".",
-                  filename != "..",
-                  persistBlob(fileData, filename: filename)
-            else {
-                return
-            }
-            blobFilename = filename
-            resolvedFileURLs = [blobDirectory.appendingPathComponent(filename, isDirectory: false).absoluteString]
+        } catch {
+            storageIssue = .saveFailed
+            return
         }
-
         if let index = items.firstIndex(where: { $0.contentHash == captured.contentHash }) {
             var existing = items.remove(at: index)
             existing.lastCopiedAt = now
@@ -83,215 +74,82 @@ public final class ClipboardStore: ObservableObject {
             existing.sourceAppName = captured.sourceAppName ?? existing.sourceAppName
             existing.sourceBundleIdentifier = captured.sourceBundleIdentifier ?? existing.sourceBundleIdentifier
             items.insert(existing, at: 0)
-            save()
-            return
+        } else {
+            items.insert(ClipboardItem(
+                kind: captured.kind, title: captured.title, subtitle: captured.subtitle,
+                text: captured.text, fileURLs: resolvedFileURLs, blobFilename: blobFilename,
+                contentHash: captured.contentHash, sourceAppName: captured.sourceAppName,
+                sourceBundleIdentifier: captured.sourceBundleIdentifier,
+                createdAt: now, lastCopiedAt: now
+            ), at: 0)
+            trimToLimit()
         }
-
-        let item = ClipboardItem(
-            kind: captured.kind,
-            title: captured.title,
-            subtitle: captured.subtitle,
-            text: captured.text,
-            fileURLs: resolvedFileURLs,
-            blobFilename: blobFilename,
-            contentHash: captured.contentHash,
-            sourceAppName: captured.sourceAppName,
-            sourceBundleIdentifier: captured.sourceBundleIdentifier,
-            createdAt: now,
-            lastCopiedAt: now
-        )
-
-        items.insert(item, at: 0)
-        trimToLimit()
-        save()
-    }
-
-    private func persistBlob(_ data: Data, filename: String) -> Bool {
-        let destination = blobDirectory.appendingPathComponent(filename, isDirectory: false)
-        do {
-            try ensureSecureDirectories()
-            if !fileManager.fileExists(atPath: destination.path) {
-                try data.write(to: destination, options: .atomic)
-            }
-            try applySecureFilePermissions(to: destination)
-            return true
-        } catch {
-            return false
-        }
+        didChange()
     }
 
     public func filteredItems(search: String, kind: ClipboardKind? = nil, pinnedOnly: Bool = false) -> [ClipboardItem] {
         items.filter { item in
-            let kindMatches = kind == nil || item.kind == kind
-            let pinMatches = !pinnedOnly || item.isPinned
-            return kindMatches && pinMatches && item.matches(search)
+            (kind == nil || item.kind == kind) && (!pinnedOnly || item.isPinned) && item.matches(search)
         }
     }
-
     public func togglePinned(_ itemID: UUID) {
-        guard let index = items.firstIndex(where: { $0.id == itemID }) else {
-            return
-        }
-
+        guard let index = items.firstIndex(where: { $0.id == itemID }) else { return }
         items[index].isPinned.toggle()
-        save()
+        didChange()
     }
-
     public func delete(_ itemID: UUID) {
-        guard let index = items.firstIndex(where: { $0.id == itemID }) else {
-            return
-        }
-
-        let removed = items.remove(at: index)
-        cleanupBlobIfUnused(from: removed)
-        save()
+        guard let index = items.firstIndex(where: { $0.id == itemID }) else { return }
+        items.remove(at: index)
+        didChange()
     }
-
     public func clearUnpinned() {
-        let removed = items.filter { !$0.isPinned }
         items.removeAll { !$0.isPinned }
-        for item in removed {
-            cleanupBlobIfUnused(from: item)
-        }
-        save()
+        didChange()
     }
-
     public func moveToTop(_ itemID: UUID) {
-        guard let index = items.firstIndex(where: { $0.id == itemID }) else {
-            return
-        }
-
+        guard let index = items.firstIndex(where: { $0.id == itemID }) else { return }
         var item = items.remove(at: index)
         item.lastCopiedAt = Date()
         items.insert(item, at: 0)
-        save()
+        didChange()
     }
-
     public func setMaxItems(_ limit: Int) {
         maxItems = min(max(limit, 50), 5_000)
         trimToLimit()
-        save()
+        didChange()
     }
-
     public func blobURL(for item: ClipboardItem) -> URL? {
-        guard let blobFilename = item.blobFilename else {
-            return nil
-        }
-        return blobDirectory.appendingPathComponent(blobFilename, isDirectory: false)
+        item.blobFilename.map { blobDirectory.appendingPathComponent($0) }
     }
-
     public func reloadFromDisk() {
-        load()
+        guard save() else { return }
+        let loaded = persistence.load()
+        items = loaded.items
+        revision &+= 1
+        storageIssue = loaded.issue
+        if loaded.needsMigration { requestSave() }
     }
-
-    private func prepareStorage() {
-        do {
-            try ensureSecureDirectories()
-            try hardenExistingStorageFiles()
-        } catch {
-            NSSound.beep()
-        }
+    /// Explicit durability barrier for termination/export/tests. Normal UI
+    /// changes enqueue background snapshots instead of calling this method.
+    @discardableResult
+    public func save() -> Bool {
+        let report = persistence.flush(items)
+        apply(report)
+        return report.succeeded
     }
-
-    private func ensureSecureDirectories() throws {
-        let attributes: [FileAttributeKey: Any] = [
-            .posixPermissions: Self.directoryPermissions
-        ]
-        try fileManager.createDirectory(
-            at: storageDirectory,
-            withIntermediateDirectories: true,
-            attributes: attributes
-        )
-        try fileManager.createDirectory(
-            at: blobDirectory,
-            withIntermediateDirectories: true,
-            attributes: attributes
-        )
-        try applySecureDirectoryPermissions(to: storageDirectory)
-        try applySecureDirectoryPermissions(to: blobDirectory)
+    private func didChange() {
+        revision &+= 1
+        requestSave()
     }
-
-    private func hardenExistingStorageFiles() throws {
-        if fileManager.fileExists(atPath: historyURL.path) {
-            try applySecureFilePermissions(to: historyURL)
-        }
-
-        let resourceKeys: Set<URLResourceKey> = [.isRegularFileKey, .isSymbolicLinkKey]
-        let blobURLs = try fileManager.contentsOfDirectory(
-            at: blobDirectory,
-            includingPropertiesForKeys: Array(resourceKeys),
-            options: [.skipsHiddenFiles]
-        )
-        for blobURL in blobURLs {
-            let values = try blobURL.resourceValues(forKeys: resourceKeys)
-            guard values.isRegularFile == true, values.isSymbolicLink != true else {
-                continue
-            }
-            try applySecureFilePermissions(to: blobURL)
-        }
+    private func requestSave() { persistence.enqueue(items) }
+    private func apply(_ report: ClipboardPersistence.Report) {
+        guard report.sequence >= reportSequence else { return }
+        reportSequence = report.sequence
+        storageIssue = report.issue
     }
-
-    private func applySecureDirectoryPermissions(to url: URL) throws {
-        try fileManager.setAttributes(
-            [.posixPermissions: Self.directoryPermissions],
-            ofItemAtPath: url.path
-        )
-    }
-
-    private func applySecureFilePermissions(to url: URL) throws {
-        try fileManager.setAttributes(
-            [.posixPermissions: Self.filePermissions],
-            ofItemAtPath: url.path
-        )
-    }
-
-    private func load() {
-        guard fileManager.fileExists(atPath: historyURL.path) else {
-            items = []
-            return
-        }
-
-        do {
-            let data = try Data(contentsOf: historyURL)
-            items = sorted(try decoder.decode([ClipboardItem].self, from: data))
-        } catch {
-            items = []
-        }
-    }
-
-    public func save() {
-        do {
-            try ensureSecureDirectories()
-            let data = try encoder.encode(items)
-            try data.write(to: historyURL, options: .atomic)
-            try applySecureFilePermissions(to: historyURL)
-        } catch {
-            NSSound.beep()
-        }
-    }
-
-    private func sorted(_ source: [ClipboardItem]) -> [ClipboardItem] {
-        source.sorted { $0.lastCopiedAt > $1.lastCopiedAt }
-    }
-
     private func trimToLimit() {
-        while items.count > maxItems,
-              let removalIndex = items.lastIndex(where: { !$0.isPinned }) {
-            let removed = items.remove(at: removalIndex)
-            cleanupBlobIfUnused(from: removed)
+        while items.count > maxItems, let index = items.lastIndex(where: { !$0.isPinned }) {
+            items.remove(at: index)
         }
-    }
-
-    private func cleanupBlobIfUnused(from item: ClipboardItem) {
-        guard let filename = item.blobFilename else {
-            return
-        }
-
-        let stillUsed = items.contains { $0.blobFilename == filename }
-        guard !stillUsed else {
-            return
-        }
-
-        try? fileManager.removeItem(at: blobDirectory.appendingPathComponent(filename, isDirectory: false))
     }
 }
