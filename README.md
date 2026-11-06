@@ -31,6 +31,13 @@ Check native text editing with an isolated AppKit field editor:
 ./scripts/check_app_input_full.sh
 ```
 
+Check delayed paste delivery and history-capacity confirmation with isolated effects:
+
+```sh
+./scripts/check_paste_delivery.sh
+./scripts/check_history_capacity.sh
+```
+
 Run the full quality gate:
 
 ```sh
@@ -87,6 +94,8 @@ Open an isolated 8 MB text fixture to check search focus and long-text preview r
 .build/arm64-apple-macosx/release/CPaste --snapshot-preview 09-large-text
 ```
 
+Use `--snapshot-preview 10-capacity-confirmation` for a disposable 60-item fixture with three pinned items, then open Settings to check capacity confirmation. It does not record or write the system clipboard.
+
 Liquid Glass screenshots require macOS 26 or later. Screen Recording permission must be available to the process that runs the snapshot command because native glass is captured from an onscreen WindowServer composition.
 
 For corner and shadow checks, set `CPASTE_SNAPSHOT_SHADOWS=1` to include the native window shadow at its original capture size. `CPASTE_SNAPSHOT_SCALE=1` or `2` places the snapshot window on a connected display with that backing scale (otherwise it uses the default display). Use `CPASTE_SNAPSHOT_THEME=standard` to compare the standard theme. In an interactive preview, closing the panel simulates a new presentation while keeping the fixture window visible, so reopening state can be checked without the global hotkey.
@@ -99,9 +108,11 @@ CPASTE_STORAGE_DIR="$(mktemp -d /tmp/cpaste-demo.XXXXXX)" build/CPaste.app/Conte
 
 ## Permissions
 
-CPaste can always write a selected history item back to the system clipboard. To paste automatically into the previous app, macOS requires Accessibility permission:
+CPaste can copy available history content back to the system clipboard. Missing images or files are checked before replacing the current clipboard. To paste automatically into the previous app, macOS requires Accessibility permission:
 
 System Settings -> Privacy & Security -> Accessibility -> enable CPaste.
+
+Automatic paste is cancelled if the target app exits, focus changes to another app, the clipboard changes, or permission becomes unavailable while delivery is pending. If the clipboard has changed, CPaste keeps its new contents and reports the cancellation; otherwise the copied content remains available for manual paste. Reopening CPaste or starting another copy/paste invalidates an earlier pending delivery.
 
 ## Storage
 
@@ -116,6 +127,8 @@ Text entries larger than 64 KiB keep their full UTF-8 body in separate local fil
 CPaste retains a valid history backup and preserves damaged files before recovery. If it cannot safely preserve the original history, it blocks replacement writes and shows a storage warning. Keep the entire storage directory together when backing it up, including the text and attachment files referenced by the indexes.
 
 Clipboard entries marked as concealed, transient, auto-generated, or as coming from a supported password manager are ignored. The storage and blob directories are restricted to the current user, but history contents are not encrypted at the application level.
+
+Resuming capture skips content copied while paused, including pause/resume cycles shorter than a polling interval. Lowering history capacity requires confirmation when it would remove unpinned items; cancelling preserves the current capacity and history.
 
 No network sync or upload is implemented.
 

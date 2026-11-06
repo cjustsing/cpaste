@@ -2,7 +2,14 @@ import AppKit
 import Foundation
 
 public final class ClipboardMonitor {
-    public var isPaused = false
+    public var isPaused = false {
+        didSet {
+            if oldValue != isPaused {
+                // A pause/resume cycle can fit entirely between timer ticks.
+                lastChangeCount = pasteboard.changeCount
+            }
+        }
+    }
 
     private let pasteboard: NSPasteboard
     private let store: ClipboardStore
@@ -29,7 +36,11 @@ public final class ClipboardMonitor {
     }
 
     public func suppressCurrentChange() {
-        suppressedChangeCounts.insert(pasteboard.changeCount)
+        suppressChange(pasteboard.changeCount)
+    }
+
+    public func suppressChange(_ changeCount: Int) {
+        suppressedChangeCounts.insert(changeCount)
         if suppressedChangeCounts.count > 8 {
             suppressedChangeCounts.remove(suppressedChangeCounts.min() ?? pasteboard.changeCount)
         }

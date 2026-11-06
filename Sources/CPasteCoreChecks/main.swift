@@ -2,6 +2,27 @@ import AppKit
 import CPasteCore
 import Foundation
 
+if CommandLine.arguments.contains("--pause-regression") {
+    testPauseResumeDoesNotCaptureChangesBetweenTimerTicks()
+    print("Pause boundary checks passed")
+    exit(0)
+}
+if CommandLine.arguments.contains("--paste-feedback-regression") {
+    testChangedClipboardReportsCancellationInsteadOfManualPaste()
+    print("Paste cancellation feedback checks passed")
+    exit(0)
+}
+if CommandLine.arguments.contains("--write-image-regression") {
+    testImageWritePreflightPreservesPasteboard()
+    print("Image write preflight checks passed")
+    exit(0)
+}
+if CommandLine.arguments.contains("--write-file-regression") {
+    testFileWritePreflightPreservesPasteboard()
+    print("File write preflight checks passed")
+    exit(0)
+}
+
 func runStorageRecoveryChecks() {
     testLegacyTextMigrationKeepsFullMetadataAndPrivateFiles()
     testRecoveryRetainsBackupDependenciesAndOriginalBytes()
@@ -316,7 +337,11 @@ func testURLRoundTripUsesNamedPasteboard() {
 
 func testFileRoundTripUsesNamedPasteboard() {
     let pasteboard = NSPasteboard(name: NSPasteboard.Name("CPasteChecks-\(UUID().uuidString)"))
-    let fileURL = URL(fileURLWithPath: "/tmp/cpaste-check.txt")
+    let directory = makeTemporaryDirectory()
+    try! FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let fileURL = directory.appendingPathComponent("cpaste-check.txt")
+    try! Data("file round-trip fixture".utf8).write(to: fileURL)
     pasteboard.clearContents()
     pasteboard.writeObjects([fileURL as NSURL])
 
@@ -910,6 +935,12 @@ testClearUnpinnedPreservesPinnedItems()
 testTimelineSelectionUsesPreviousVisibleItemAfterRemoval()
 testFilteringMatchesTextAndKind()
 testSensitiveAndTransientPasteboardTypesAreIgnored()
+testPauseResumeDoesNotCaptureChangesBetweenTimerTicks()
+testCaptureSuppressionDoesNotConsumeANewerExternalCopy()
+testChangedClipboardReportsCancellationInsteadOfManualPaste()
+testImageWritePreflightPreservesPasteboard()
+testFileWritePreflightPreservesPasteboard()
+testPasteboardWriterNormalRoundTrips()
 testPasteboardTextRoundTripUsesNamedPasteboard()
 testLargeTextKeepsFullContentWithBoundedPreviews()
 testLargeTextStorageRegression()
@@ -932,6 +963,7 @@ testSingleImageFileUsesSourceApplicationIntent()
 testSourceApplicationMetadataPersistsAndSearches()
 testLegacyHistoryWithoutSourceMetadataStillLoads()
 testUpdatingHistoryLimitTrimsImmediately()
+testHistoryCapacityChangeProtectsPinnedItemsAndPredictsRemoval()
 testPlainTextWriterUsesTextFallbacks()
 testPanelPlacementFollowsMouseAndUsesFullScreenWidth()
 testHiddenPanelCanBePreparedBeforePresentation()

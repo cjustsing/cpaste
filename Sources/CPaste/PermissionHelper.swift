@@ -21,13 +21,18 @@ enum PermissionHelper {
 }
 
 enum KeyboardPaster {
-    static func sendPasteCommand() {
+    /// Reports event construction/submission, not acknowledgement by the app.
+    static func sendPasteCommand(to processIdentifier: pid_t) -> Bool {
+        guard processIdentifier > 0 else { return false }
         let source = CGEventSource(stateID: .combinedSessionState)
-        let keyDown = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(kVK_ANSI_V), keyDown: true)
-        let keyUp = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(kVK_ANSI_V), keyDown: false)
-        keyDown?.flags = CGEventFlags.maskCommand
-        keyUp?.flags = CGEventFlags.maskCommand
-        keyDown?.post(tap: CGEventTapLocation.cghidEventTap)
-        keyUp?.post(tap: CGEventTapLocation.cghidEventTap)
+        guard let source,
+              let keyDown = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(kVK_ANSI_V), keyDown: true),
+              let keyUp = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(kVK_ANSI_V), keyDown: false)
+        else { return false }
+        keyDown.flags = CGEventFlags.maskCommand
+        keyUp.flags = CGEventFlags.maskCommand
+        keyDown.postToPid(processIdentifier)
+        keyUp.postToPid(processIdentifier)
+        return true
     }
 }

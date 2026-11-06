@@ -262,7 +262,7 @@ Navigating between cards with the arrow keys scrolls the timeline to the selecte
 | `Return` | Paste the selected item |
 | `Shift-Return` | Paste as plain text; images show a status message instead |
 | `Command-1` ... `Command-9` | Paste visible item 1 ... 9 |
-| `Command-C` | Copy selected text in a focused, nonempty search field; otherwise copy the selected history item |
+| `Command-C` | Prefer text selections in search or the inspector; copy history with empty search or timeline focus |
 | `Shift-Command-P` | Pin or unpin the selected item |
 | `Command-I` | Expand or collapse the inspector |
 | `Delete` | Delete the selected item |
@@ -280,8 +280,10 @@ When you paste an item:
 
 1. CPaste writes it to the system clipboard.
 2. The item moves to the front of history.
-3. With Accessibility permission, CPaste closes, returns to the previous app, and sends `Command-V`.
-4. Without permission, the panel stays open and shows Copied.
+3. With Accessibility permission and a valid target, CPaste closes, returns to the original target app, and sends `Command-V`.
+4. If permission is unavailable, the target exits, or focus switches to another app, the copy remains available and CPaste shows “Copied; paste manually.” If the clipboard has been replaced, CPaste preserves its new contents and reports cancellation; the original item is still in history. Reopening CPaste or starting another copy/paste cancels an earlier pending delivery.
+
+Unavailable images or files fail validation before replacing the current clipboard and do not trigger automatic paste. If any file in a multiple-file selection is unavailable, the whole copy is rejected. File paths can still be copied as plain text.
 
 ### 10.2 Paste as plain text
 
@@ -393,7 +395,7 @@ Default directory:
 | `history.backup.json`, `history.legacy-backup.json` | Valid history backup and original migration index |
 | `Recovery/*.json` | Damaged indexes preserved for recovery |
 
-CPaste skips clipboard data marked concealed, transient, auto-generated, or associated with supported password managers. Storage permissions restrict files to the current user, but contents are not encrypted at the application layer. CPaste contains no network upload implementation. Lowering history capacity immediately removes the oldest unpinned items as needed.
+CPaste skips clipboard data marked concealed, transient, auto-generated, or associated with supported password managers. Resuming capture skips changes made while paused, even if pause and resume occur between polls. Storage permissions restrict files to the current user, but contents are not encrypted at the application layer. CPaste contains no network upload implementation. Capacity changes that would remove unpinned items show the removal count and require confirmation; cancelling keeps the current capacity and all history. Non-destructive changes apply immediately.
 
 Existing history migrates automatically while preserving full text, pins, source metadata, and timestamps. Routine changes save in order in the background; normal quit waits for pending saves.
 

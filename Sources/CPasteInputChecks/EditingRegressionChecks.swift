@@ -28,6 +28,15 @@ private final class InputUndoToken: NSObject {
     var calls = 0
 }
 
+private final class InputSelectedTextView: NSTextView {
+    var copyCalls = 0
+    var copiedFixtureText: String?
+    override func copy(_ sender: Any?) {
+        copyCalls += 1
+        copiedFixtureText = (string as NSString).substring(with: selectedRange())
+    }
+}
+
 private func inputMenuItems(in menu: NSMenu) -> [NSMenuItem] {
     menu.items.flatMap { item in
         [item] + (item.submenu.map { inputMenuItems(in: $0) } ?? [])
@@ -224,6 +233,39 @@ private func testMarkedTextAndSheetEventPassThrough(app: NSApplication, window: 
     window.makeKeyAndOrderFront(nil)
 }
 
+private func testSelectedReadOnlyTextCopyPrecedence(app: NSApplication, window: NSWindow) {
+    let textView = InputSelectedTextView(frame: NSRect(x: 5, y: 5, width: 240, height: 60))
+    textView.string = "Fixture prefix 中文 👨‍👩‍👧‍👦 suffix"
+    textView.isEditable = false
+    textView.isSelectable = true
+    window.contentView!.addSubview(textView)
+    defer { textView.removeFromSuperview() }
+    inputCheck(window.makeFirstResponder(textView), "read-only selectable native text must accept focus")
+    let fixtureSelection = (textView.string as NSString).range(of: "中文")
+    textView.setSelectedRange(fixtureSelection)
+    var handledHistory: [HistoryKeyboardCommand] = []
+    let monitor = HistoryKeyboardMonitor.Coordinator(isSearchFocused: false, isSearchEmpty: true) {
+        handledHistory.append($0)
+        return true
+    }
+    monitor.hostView = textView
+    monitor.install()
+    defer { monitor.uninstall() }
+
+    dispatchInputKey(app: app, window: window, keyCode: 8, characters: "c", flags: .command)
+    inputCheck(
+        textView.copyCalls == 1 && textView.copiedFixtureText == "中文" && handledHistory.isEmpty,
+        "selected read-only text must receive native Cmd+C instead of copying the whole history item"
+    )
+    for flags: NSEvent.ModifierFlags in [[.command, .shift], [.command, .option], [.command, .control]] {
+        dispatchInputKey(app: app, window: window, keyCode: 8, characters: flags.contains(.shift) ? "C" : "c", flags: flags)
+    }
+    inputCheck(textView.copyCalls == 1 && handledHistory.isEmpty, "extra modifiers must not broaden plain Copy matching")
+    textView.setSelectedRange(NSRange(location: 0, length: 0))
+    dispatchInputKey(app: app, window: window, keyCode: 8, characters: "c", flags: .command)
+    inputCheck(textView.copyCalls == 1 && handledHistory == [.copy], "without a native text selection Cmd+C must retain history copying")
+}
+
 private func testMenuLanguageReinstallation(app: NSApplication, window: NSWindow, field: NSTextField) {
     let previousLanguage = CPasteL10n.language
     defer {
@@ -258,6 +300,7 @@ private func testMenuLanguageReinstallation(app: NSApplication, window: NSWindow
 func runFullNativeInputChecks(app: NSApplication, window: NSWindow, field: NSTextField) {
     testHistoryInputCommandMatrix()
     testMenuActionsAndRouting(app: app, window: window)
+    testSelectedReadOnlyTextCopyPrecedence(app: app, window: window)
     testMarkedTextAndSheetEventPassThrough(app: app, window: window)
     testMenuLanguageReinstallation(app: app, window: window, field: field)
     print("Native menu, event routing, marked text, sheet, and shortcut checks passed")

@@ -211,36 +211,61 @@ public enum PasteboardReader {
 
 public enum PasteboardWriter {
     public static func write(_ item: ClipboardItem, blobDirectory: URL, to pasteboard: NSPasteboard = .general) -> Bool {
-        pasteboard.clearContents()
+        guard let objects = preparedObjects(for: item, blobDirectory: blobDirectory) else {
+            return false
+        }
 
+        // Validate every representation before taking ownership. A failed
+        // preflight must leave the previous clipboard untouched. AppKit's
+        // publication itself is not transactional; return its actual result.
+        pasteboard.clearContents()
+        return pasteboard.writeObjects(objects)
+    }
+
+    private static func preparedObjects(for item: ClipboardItem, blobDirectory: URL) -> [NSPasteboardWriting]? {
         switch item.kind {
         case .text:
-            pasteboard.setString(item.text, forType: .string)
-            return true
+            return [item.text as NSString]
         case .url:
-            pasteboard.setString(item.text, forType: .string)
-            if let url = URL(string: item.text) {
-                pasteboard.writeObjects([url as NSURL])
-            }
-            return true
+            guard let url = URL(string: item.text), url.scheme != nil else { return nil }
+            let object = NSPasteboardItem()
+            guard object.setString(item.text, forType: .string),
+                  object.setString(url.absoluteString, forType: .URL)
+            else { return nil }
+            return [object]
         case .file:
-            let urls = item.fileURLs.compactMap(URL.init(string:))
-            guard !urls.isEmpty else {
-                return false
-            }
-            pasteboard.writeObjects(urls.map { $0 as NSURL })
-            return true
+            guard let urls = localFileURLs(item.fileURLs, requireExistingFiles: true) else { return nil }
+            return urls.map { $0 as NSURL }
         case .image:
-            guard let filename = item.blobFilename else {
-                return false
-            }
+            guard let filename = item.blobFilename,
+                  !filename.isEmpty, filename != ".", filename != "..",
+                  !filename.contains("/"), !filename.contains("\\"), !filename.contains("\0"),
+                  URL(fileURLWithPath: filename).lastPathComponent == filename
+            else { return nil }
             let url = blobDirectory.appendingPathComponent(filename, isDirectory: false)
-            guard let image = NSImage(contentsOf: url) else {
-                return false
-            }
-            pasteboard.writeObjects([image])
-            return true
+            guard let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey]),
+                  values.isRegularFile == true, values.isSymbolicLink != true,
+                  FileManager.default.isReadableFile(atPath: url.path),
+                  let image = NSImage(contentsOf: url), image.isValid
+            else { return nil }
+            // Keep NSImage's existing AppKit pasteboard representations for
+            // compatibility with destinations that request formats besides PNG.
+            return [image]
         }
+    }
+
+    private static func localFileURLs(_ values: [String], requireExistingFiles: Bool) -> [URL]? {
+        guard !values.isEmpty else { return nil }
+        var urls: [URL] = []
+        for value in values {
+            guard let url = URL(string: value), url.isFileURL, url.path.hasPrefix("/"), !url.path.contains("\0"),
+                  url.host == nil || url.host == "" || url.host?.lowercased() == "localhost",
+                  url.query == nil, url.fragment == nil
+            else { return nil }
+            if requireExistingFiles, !FileManager.default.fileExists(atPath: url.path) { return nil }
+            urls.append(url)
+        }
+        return urls
     }
 
     public static func writePlainText(_ item: ClipboardItem, to pasteboard: NSPasteboard = .general) -> Bool {
@@ -250,10 +275,11 @@ public enum PasteboardWriter {
         case .text, .url:
             value = item.text
         case .file:
-            value = item.fileURLs
-                .compactMap(URL.init(string:))
-                .map(\.path)
-                .joined(separator: "\n")
+            // Copying a path as text does not require its original file to
+            // remain on disk, but malformed/mixed URL lists must not silently
+            // turn into a partial selection.
+            guard let urls = localFileURLs(item.fileURLs, requireExistingFiles: false) else { return false }
+            value = urls.map(\.path).joined(separator: "\n")
         case .image:
             return false
         }

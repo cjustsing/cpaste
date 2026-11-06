@@ -19,6 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     )
     private lazy var monitor = ClipboardMonitor(store: store)
     private let hotKeyCenter = HotKeyCenter()
+    private let pasteDelivery = PasteDeliveryCoordinator()
 
     private var statusItem: NSStatusItem?
     private var panel: NSPanel?
@@ -43,6 +44,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        pasteDelivery.cancel()
         guard store.save() else {
             appState.storageWarning = CPasteL10n.text(
                 "历史尚未保存，暂未退出；请检查磁盘或权限",
@@ -167,6 +169,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func showPanel() {
+        pasteDelivery.cancel()
         capturePreviousApplication()
         let presentationID = UUID()
         pendingPanelPresentationID = presentationID
@@ -345,52 +348,76 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func paste(_ item: ClipboardItem) {
+        pasteDelivery.cancel()
         guard PasteboardWriter.write(item, blobDirectory: store.blobDirectory) else {
             appState.statusMessage = CPasteL10n.text("复制失败", "Copy failed")
             return
         }
 
-        completePaste(item, status: CPasteL10n.text("已粘贴", "Pasted"))
+        completePaste(item, status: CPasteL10n.text("已发送粘贴", "Paste sent"))
     }
 
     private func pastePlainText(_ item: ClipboardItem) {
+        pasteDelivery.cancel()
         guard PasteboardWriter.writePlainText(item) else {
             appState.statusMessage = CPasteL10n.text("没有可用的纯文本", "No plain text available")
             return
         }
 
-        completePaste(item, status: CPasteL10n.text("已粘贴纯文本", "Pasted plain text"))
+        completePaste(item, status: CPasteL10n.text("已发送纯文本粘贴", "Plain text paste sent"))
     }
 
     private func completePaste(_ item: ClipboardItem, status: String) {
+        let clipboardVersion = NSPasteboard.general.changeCount
+        pasteDelivery.cancel()
         store.moveToTop(item.id)
-        monitor.suppressCurrentChange()
-
-        let canPasteDirectly = PermissionHelper.isAccessibilityTrusted
-        appState.statusMessage = canPasteDirectly ? status : CPasteL10n.text("已复制", "Copied")
+        monitor.suppressChange(clipboardVersion)
+        let copiedStatus = CPasteL10n.text("已复制，请手动粘贴", "Copied; paste manually")
+        appState.statusMessage = copiedStatus
         hidePanel()
-
-        guard canPasteDirectly else {
-            previousApplication?.activate(options: [.activateIgnoringOtherApps])
+        let ownerPID = ProcessInfo.processInfo.processIdentifier
+        guard let target = previousApplication,
+              target.processIdentifier != ownerPID, !target.isTerminated else {
             return
         }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
-            self?.previousApplication?.activate(options: [.activateIgnoringOtherApps])
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
-                KeyboardPaster.sendPasteCommand()
+        guard PermissionHelper.isAccessibilityTrusted else {
+            if NSWorkspace.shared.frontmostApplication?.processIdentifier == ownerPID {
+                _ = target.activate(options: [.activateIgnoringOtherApps])
             }
+            return
         }
+        pasteDelivery.deliver(
+            targetProcessID: target.processIdentifier,
+            ownerProcessID: ownerPID,
+            isTargetAvailable: { !target.isTerminated },
+            frontmostProcessID: { NSWorkspace.shared.frontmostApplication?.processIdentifier },
+            isClipboardCurrent: { NSPasteboard.general.changeCount == clipboardVersion },
+            isPermitted: { PermissionHelper.isAccessibilityTrusted },
+            activateTarget: { target.activate(options: [.activateIgnoringOtherApps]) },
+            sendPaste: { KeyboardPaster.sendPasteCommand(to: target.processIdentifier) },
+            completion: { [weak self] result in
+                switch result {
+                case .sent: self?.appState.statusMessage = status
+                case .copied: self?.appState.statusMessage = copiedStatus
+                case .clipboardChanged:
+                    self?.appState.statusMessage = CPasteL10n.text(
+                        "剪贴板已更新，已取消自动粘贴", "Clipboard changed; paste cancelled"
+                    )
+                }
+            }
+        )
     }
 
     private func copyOnly(_ item: ClipboardItem) {
+        pasteDelivery.cancel()
         guard PasteboardWriter.write(item, blobDirectory: store.blobDirectory) else {
             appState.statusMessage = CPasteL10n.text("复制失败", "Copy failed")
             return
         }
 
+        let clipboardVersion = NSPasteboard.general.changeCount
         store.moveToTop(item.id)
-        monitor.suppressCurrentChange()
+        monitor.suppressChange(clipboardVersion)
         appState.statusMessage = CPasteL10n.text("已复制", "Copied")
     }
 

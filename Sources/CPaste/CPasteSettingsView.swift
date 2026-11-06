@@ -11,6 +11,7 @@ struct CPasteSettingsView: View {
     @State private var section: SettingsSection
     @State private var hasAccessibilityPermission = false
     @State private var isConfirmingClear = false
+    @State private var pendingHistoryLimit: Int?
     @State private var presentationState: SettingsPresentationState
 
     init(
@@ -56,18 +57,34 @@ struct CPasteSettingsView: View {
             hasAccessibilityPermission = actions.hasAccessibilityPermission()
         }
         .onDisappear {
+            cancelHistoryLimitChange()
+            isConfirmingClear = false
             presentationState.reset()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             hasAccessibilityPermission = actions.hasAccessibilityPermission()
         }
-        .confirmationDialog(CPasteL10n.text("清空未收藏的历史记录？", "Clear unpinned history?"), isPresented: $isConfirmingClear) {
-            Button(CPasteL10n.text("清空", "Clear"), role: .destructive) {
-                actions.clearUnpinned()
+        .confirmationDialog(confirmationTitle, isPresented: confirmationBinding) {
+            if let change = pendingHistoryCapacityChange {
+                Button(
+                    CPasteL10n.text("删除 \(change.removalCount) 条并调整", "Remove \(change.removalCount) and Change Capacity"),
+                    role: .destructive
+                ) {
+                    // The native dialog may reset its presentation Binding
+                    // before running the button action; retain the chosen limit.
+                    confirmHistoryLimitChange(change.limit)
+                }
+            } else {
+                Button(CPasteL10n.text("清空", "Clear"), role: .destructive) {
+                    actions.clearUnpinned()
+                }
             }
-            Button(CPasteL10n.text("取消", "Cancel"), role: .cancel) {}
+            Button(CPasteL10n.text("取消", "Cancel"), role: .cancel) {
+                isConfirmingClear = false
+                cancelHistoryLimitChange()
+            }
         } message: {
-            Text(CPasteL10n.text("已收藏的内容会保留。", "Pinned items will stay in CPaste."))
+            Text(confirmationMessage)
         }
         .environment(\.cpasteThemeStyle, appState.themeStyle)
     }
@@ -582,6 +599,11 @@ struct CPasteSettingsView: View {
     }
 
     private func requestClose() {
+        if pendingHistoryLimit != nil || isConfirmingClear {
+            cancelHistoryLimitChange()
+            isConfirmingClear = false
+            return
+        }
         if presentationState.handleCloseRequest() {
             dismiss()
         }
@@ -601,8 +623,65 @@ struct CPasteSettingsView: View {
     private var historyLimitBinding: Binding<Int> {
         Binding(
             get: { store.maxItems },
-            set: actions.setHistoryLimit
+            set: requestHistoryLimit
         )
+    }
+
+    private func requestHistoryLimit(_ limit: Int) {
+        let change = HistoryCapacityChange(requestedLimit: limit, items: store.items)
+        guard change.limit != store.maxItems else {
+            cancelHistoryLimitChange()
+            return
+        }
+        if change.requiresConfirmation {
+            pendingHistoryLimit = change.limit
+        } else {
+            cancelHistoryLimitChange()
+            actions.setHistoryLimit(change.limit)
+        }
+    }
+
+    private func confirmHistoryLimitChange(_ confirmedLimit: Int? = nil) {
+        guard let limit = confirmedLimit ?? pendingHistoryLimit else { return }
+        cancelHistoryLimitChange()
+        if limit != store.maxItems { actions.setHistoryLimit(limit) }
+    }
+
+    private func cancelHistoryLimitChange() {
+        pendingHistoryLimit = nil
+    }
+
+    private var pendingHistoryCapacityChange: HistoryCapacityChange? {
+        pendingHistoryLimit.map { HistoryCapacityChange(requestedLimit: $0, items: store.items) }
+    }
+
+    private var confirmationBinding: Binding<Bool> {
+        Binding(
+            get: { isConfirmingClear || pendingHistoryLimit != nil },
+            set: { isPresented in
+                if !isPresented {
+                    isConfirmingClear = false
+                    cancelHistoryLimitChange()
+                }
+            }
+        )
+    }
+
+    private var confirmationTitle: String {
+        if let change = pendingHistoryCapacityChange {
+            return CPasteL10n.text("将历史容量设为 \(change.limit) 条？", "Set history capacity to \(change.limit)?")
+        }
+        return CPasteL10n.text("清空未收藏的历史记录？", "Clear unpinned history?")
+    }
+
+    private var confirmationMessage: String {
+        if let change = pendingHistoryCapacityChange {
+            return CPasteL10n.text(
+                "将删除 \(change.removalCount) 条未收藏记录，\(change.pinnedCount) 条收藏记录全部保留。",
+                "This removes \(change.removalCount) unpinned items. All \(change.pinnedCount) pinned items stay."
+            )
+        }
+        return CPasteL10n.text("已收藏的内容会保留。", "Pinned items will stay in CPaste.")
     }
 
     private var themeStyleBinding: Binding<AppThemeStyle> {

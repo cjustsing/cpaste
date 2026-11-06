@@ -95,6 +95,23 @@ enum SnapshotRenderer {
                 appState: makeReadyState(),
                 inspectorPresented: true
             )
+        case "10-capacity-confirmation":
+            let store = makeDemoStore(name: "preview-capacity")
+            for index in 0..<53 {
+                store.insertCaptured(CapturedClipboardContent(
+                    kind: .text,
+                    title: "Capacity fixture \(index)",
+                    text: "Synthetic capacity acceptance item \(index)",
+                    contentHash: "snapshot-capacity-\(index)"
+                ))
+            }
+            for item in store.items.prefix(2) { store.togglePinned(item.id) }
+            showPanelPreview(
+                size: NSSize(width: 1_180, height: 440),
+                store: store,
+                appState: makeReadyState(),
+                inspectorPresented: false
+            )
         default:
             throw SnapshotError.unknownScene(rawName)
         }

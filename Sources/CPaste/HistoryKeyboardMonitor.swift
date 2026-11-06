@@ -73,6 +73,7 @@ struct HistoryKeyboardMonitor: NSViewRepresentable {
                       event.window === window,
                       window.attachedSheet == nil,
                       (window.firstResponder as? NSTextView)?.hasMarkedText() != true,
+                      !self.hasNativeCopySelection(for: event, in: window),
                       let command = self.command(for: event),
                       self.handle(command)
                 else {
@@ -96,6 +97,18 @@ struct HistoryKeyboardMonitor: NSViewRepresentable {
                 isSearchFocused: isSearchFocused,
                 isSearchEmpty: isSearchEmpty
             )
+        }
+
+        private func hasNativeCopySelection(for event: NSEvent, in window: NSWindow) -> Bool {
+            let modifiers = event.modifierFlags.intersection([.command, .shift, .option, .control])
+            guard event.keyCode == 8, modifiers == .command,
+                  let textView = window.firstResponder as? NSTextView,
+                  textView.isSelectable,
+                  textView.selectedRange().length > 0
+            else { return false }
+            // Inspector previews can own a native selection while the search
+            // field is unfocused. Let the editing menu copy that selected text.
+            return true
         }
 
         static func command(
@@ -129,7 +142,7 @@ struct HistoryKeyboardMonitor: NSViewRepresentable {
                 switch keyCode {
                 case 3:
                     return .focusSearch
-                case 8 where !isSearchFocused || isSearchEmpty:
+                case 8 where !hasShift && (!isSearchFocused || isSearchEmpty):
                     return .copy
                 case 43:
                     return .showSettings
