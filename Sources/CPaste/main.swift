@@ -30,6 +30,10 @@ if let snapshotPreview = SnapshotRenderer.snapshotPreviewArgument() {
     app.run()
 }
 
+if let exitCode = LoginItemCommand.runIfRequested() {
+    exit(exitCode)
+}
+
 let delegate = AppDelegate()
 app.delegate = delegate
 app.setActivationPolicy(.accessory)

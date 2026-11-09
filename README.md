@@ -31,12 +31,13 @@ Check native text editing with an isolated AppKit field editor:
 ./scripts/check_app_input_full.sh
 ```
 
-Check delayed paste delivery and history-capacity confirmation with isolated effects:
+Check clipboard delivery, history safeguards, login items, and resource handling with isolated effects:
 
 ```sh
 ./scripts/check_paste_delivery.sh
 ./scripts/check_history_capacity.sh
 ./scripts/check_capture_shutdown.sh
+./scripts/check_login_item.sh
 ./scripts/check_visual_resources.sh
 ```
 
@@ -74,6 +75,16 @@ open build/CPaste.app
 ```
 
 The app lives in the menu bar. Press `Command+Shift+V` to open the history panel.
+
+Enable **Settings > General > Launch at Login** to start CPaste in the menu bar when you sign in to macOS. The switch reflects the system login-item state; if approval is needed, use **Open System Settings** to allow CPaste. Turning it off persists across app restarts.
+
+Inspect the installed app's login item without starting clipboard capture:
+
+```sh
+/Applications/CPaste.app/Contents/MacOS/CPaste --login-item status
+```
+
+Use `--login-item enable` or `--login-item disable` to change it explicitly. The command prints the app path, version, and actual system status as JSON; a pending approval returns exit code 2.
 
 CPaste follows the macOS language by default. You can also choose `System`, `简体中文`, or `English` in Settings > General > Interface Language; the change takes effect immediately.
 

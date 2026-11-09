@@ -5,6 +5,7 @@ import SwiftUI
 struct CPasteSettingsView: View {
     @ObservedObject var store: ClipboardStore
     @ObservedObject var appState: AppState
+    @ObservedObject private var loginItem: LoginItemController
     let actions: HistoryPanelActions
 
     @Environment(\.dismiss) private var dismiss
@@ -23,6 +24,7 @@ struct CPasteSettingsView: View {
     ) {
         self.store = store
         self.appState = appState
+        self.loginItem = appState.loginItem
         self.actions = actions
         _section = State(initialValue: initialSection)
         _presentationState = State(initialValue: SettingsPresentationState(isSupportPresented: initialSupportPresented))
@@ -55,6 +57,7 @@ struct CPasteSettingsView: View {
         }
         .onAppear {
             hasAccessibilityPermission = actions.hasAccessibilityPermission()
+            loginItem.refresh()
         }
         .onDisappear {
             cancelHistoryLimitChange()
@@ -63,6 +66,7 @@ struct CPasteSettingsView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             hasAccessibilityPermission = actions.hasAccessibilityPermission()
+            loginItem.refresh()
         }
         .confirmationDialog(confirmationTitle, isPresented: confirmationBinding) {
             if let change = pendingHistoryCapacityChange {
@@ -185,7 +189,48 @@ struct CPasteSettingsView: View {
     }
 
     private var generalSettings: some View {
+        ScrollView {
+            generalSettingsRows
+                .padding(.horizontal, 18)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
+        }
+    }
+
+    private var generalSettingsRows: some View {
         VStack(spacing: 0) {
+            settingsRow(
+                icon: "power",
+                title: CPasteL10n.text("登录时启动", "Launch at Login"),
+                subtitle: loginItemSubtitle,
+                minHeight: 52
+            ) {
+                HStack(spacing: 8) {
+                    if loginItem.needsApproval {
+                        Button(CPasteL10n.text("打开系统设置", "Open System Settings")) {
+                            loginItem.openSystemSettings()
+                        }
+                        .controlSize(.small)
+                    }
+                    Toggle("", isOn: loginItemBinding)
+                        .toggleStyle(.switch)
+                        .labelsHidden()
+                        .accessibilityLabel(CPasteL10n.text("登录时启动", "Launch at Login"))
+                }
+            }
+
+            if let error = loginItem.lastError {
+                Text(CPasteL10n.text("无法更改登录项，请重试或检查系统设置", "Could not change the login item. Retry or check System Settings."))
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(CPasteTheme.rose)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.leading, 52)
+                    .padding(.bottom, 8)
+                    .help(error.localizedDescription)
+            }
+
+            Divider().padding(.leading, 56)
+
             settingsRow(
                 icon: appState.isCapturePaused ? "pause.circle.fill" : "record.circle",
                 title: CPasteL10n.text("剪贴板捕获", "Clipboard Capture"),
@@ -289,8 +334,6 @@ struct CPasteSettingsView: View {
                 }
             }
         }
-        .padding(.horizontal, 18)
-        .padding(.top, 12)
     }
 
     private var privacySettings: some View {
@@ -653,6 +696,25 @@ struct CPasteSettingsView: View {
                 }
             }
         )
+    }
+
+    private var loginItemBinding: Binding<Bool> {
+        Binding(get: { loginItem.isEnabled }, set: loginItem.setEnabled)
+    }
+
+    private var loginItemSubtitle: String {
+        switch loginItem.status {
+        case .enabled:
+            return CPasteL10n.text("登录后在菜单栏后台运行", "Runs in the menu bar after login")
+        case .requiresApproval:
+            return CPasteL10n.text("需要在系统设置中允许", "Allow CPaste in System Settings")
+        case .notRegistered:
+            return CPasteL10n.text("未开启", "Off")
+        case .notFound:
+            return CPasteL10n.text("未找到登录项，请重新开启", "Login item not found; try enabling it again")
+        @unknown default:
+            return CPasteL10n.text("请检查系统登录项设置", "Check Login Items in System Settings")
+        }
     }
 
     private var historyLimitBinding: Binding<Int> {

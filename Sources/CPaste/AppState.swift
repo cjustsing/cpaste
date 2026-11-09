@@ -3,6 +3,7 @@ import CPasteCore
 import Foundation
 
 final class AppState: ObservableObject {
+    let loginItem: LoginItemController
     @Published var statusMessage: String
     @Published var storageWarning: String?
     @Published var isStorageRetrying = false
@@ -19,8 +20,10 @@ final class AppState: ObservableObject {
 
     init(
         themeStyle: AppThemeStyle = AppEnvironment.themeStyle,
-        language: AppLanguage = AppEnvironment.language
+        language: AppLanguage = AppEnvironment.language,
+        loginItem: LoginItemController = LoginItemController()
     ) {
+        self.loginItem = loginItem
         self.themeStyle = themeStyle
         self.language = language
         CPasteL10n.language = language

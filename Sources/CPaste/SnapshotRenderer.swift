@@ -1,7 +1,15 @@
 import AppKit
 import CPasteCore
 import ScreenCaptureKit
+import ServiceManagement
 import SwiftUI
+
+// Preview toggles exercise the UI without changing the Mac's real login items.
+private final class SnapshotLoginItemService: LoginItemService {
+    var status: SMAppService.Status = .notRegistered
+    func register() throws { status = .enabled }
+    func unregister() throws { status = .notRegistered }
+}
 
 @MainActor
 enum SnapshotRenderer {
@@ -62,7 +70,7 @@ enum SnapshotRenderer {
                 inspectorPresented: false
             )
         case "04-empty-timeline":
-            let state = AppState(themeStyle: themeStyle)
+            let state = makeReadyState()
             state.statusMessage = CPasteL10n.text("就绪", "Ready")
             showPanelPreview(
                 size: NSSize(width: 680, height: 420),
@@ -177,7 +185,7 @@ enum SnapshotRenderer {
             to: directory
         )
 
-        let emptyState = AppState(themeStyle: themeStyle)
+        let emptyState = makeReadyState()
         emptyState.statusMessage = CPasteL10n.text("就绪", "Ready")
         try await renderPanel(
             name: "04-empty-timeline.png",
@@ -448,7 +456,10 @@ enum SnapshotRenderer {
     }
 
     private static func makeReadyState() -> AppState {
-        let state = AppState(themeStyle: themeStyle)
+        let state = AppState(
+            themeStyle: themeStyle,
+            loginItem: LoginItemController(service: SnapshotLoginItemService(), openSettings: {})
+        )
         state.statusMessage = CPasteL10n.text("已复制", "Copied")
         return state
     }

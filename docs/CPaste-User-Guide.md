@@ -318,6 +318,7 @@ Clear unpinned history from Settings -> Privacy -> Clear History, or from the me
 
 | Setting | Description |
 | --- | --- |
+| Launch at Login | Starts quietly in the menu bar when you sign in to macOS; reflects the system state and links to System Settings if approval is needed; stays off after relaunch when disabled |
 | Clipboard Capture | Pausing prevents new clipboard items from being saved |
 | History Capacity | 50, 100, 500, or 1000 items; pinned items are preserved |
 | Appearance Theme | Liquid Glass / Standard on macOS 26 or later; Standard only on earlier systems |

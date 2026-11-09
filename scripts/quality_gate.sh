@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT_DIR"
 
 swift run CPasteCoreChecks
+./scripts/check_login_item.sh
 ./scripts/check_paste_delivery.sh
 ./scripts/check_capture_shutdown.sh
 ./scripts/check_history_capacity.sh
